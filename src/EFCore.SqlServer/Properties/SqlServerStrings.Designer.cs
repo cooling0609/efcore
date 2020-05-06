@@ -208,7 +208,7 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
                 index1, entityType1, index2, entityType2, table, indexName);
 
         /// <summary>
-        ///     The indexes {index1} on '{entityType1}' and {index2} on '{entityType2}' are both mapped to '{table}.{indexName}' but with different included properties {includedProperties1} and {includedProperties2}.
+        ///     The indexes {index1} on '{entityType1}' and {index2} on '{entityType2}' are both mapped to '{table}.{indexName}' but with different included columns {includedProperties1} and {includedProperties2}.
         /// </summary>
         public static string DuplicateIndexIncludedMismatch([CanBeNull] object index1, [CanBeNull] object entityType1, [CanBeNull] object index2, [CanBeNull] object entityType2, [CanBeNull] object table, [CanBeNull] object indexName, [CanBeNull] object includedProperties1, [CanBeNull] object includedProperties2)
             => string.Format(

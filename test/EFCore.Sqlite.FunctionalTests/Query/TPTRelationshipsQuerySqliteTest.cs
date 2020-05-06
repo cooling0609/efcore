@@ -5,15 +5,15 @@ using Microsoft.EntityFrameworkCore.TestUtilities;
 
 namespace Microsoft.EntityFrameworkCore.Query
 {
-    public class InheritanceRelationshipsQuerySqliteTest :
-        InheritanceRelationshipsQueryTestBase<InheritanceRelationshipsQuerySqliteTest.InheritanceRelationshipsQuerySqliteFixture>
+    public class TPTRelationshipsQuerySqliteTest :
+        TPTRelationshipsQueryTestBase<TPTRelationshipsQuerySqliteTest.TPTRelationshipsQuerySqliteFixture>
     {
-        public InheritanceRelationshipsQuerySqliteTest(InheritanceRelationshipsQuerySqliteFixture fixture)
+        public TPTRelationshipsQuerySqliteTest(TPTRelationshipsQuerySqliteFixture fixture)
             : base(fixture)
         {
         }
 
-        public class InheritanceRelationshipsQuerySqliteFixture : InheritanceRelationshipsQueryRelationalFixture
+        public class TPTRelationshipsQuerySqliteFixture : TPTRelationshipsQueryRelationalFixture
         {
             protected override ITestStoreFactory TestStoreFactory => SqliteTestStoreFactory.Instance;
         }

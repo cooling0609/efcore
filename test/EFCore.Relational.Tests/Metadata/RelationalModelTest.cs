@@ -10,53 +10,58 @@ using Microsoft.EntityFrameworkCore.TestUtilities;
 using Xunit;
 
 // ReSharper disable InconsistentNaming
-
 namespace Microsoft.EntityFrameworkCore.Metadata
 {
     public class RelationalModelTest
     {
         [ConditionalTheory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Can_use_relational_model_with_tables(bool useExplicitMapping)
+        [InlineData(true, Mapping.TPH)]
+        [InlineData(true, Mapping.TPT)]
+        [InlineData(false, Mapping.TPH)]
+        [InlineData(false, Mapping.TPT)]
+        public void Can_use_relational_model_with_tables(bool useExplicitMapping, Mapping mapping)
         {
-            var model = CreateTestModel(mapToTables: useExplicitMapping);
+            var model = CreateTestModel(mapToTables: useExplicitMapping, mapping: mapping);
 
             Assert.Equal(6, model.Model.GetEntityTypes().Count());
-            Assert.Equal(2, model.Tables.Count());
+            Assert.Equal(mapping == Mapping.TPH || !useExplicitMapping ? 2 : 3, model.Tables.Count());
             Assert.Empty(model.Views);
             Assert.True(model.Model.GetEntityTypes().All(et => !et.GetViewMappings().Any()));
 
-            AssertTables(model);
+            AssertTables(model, useExplicitMapping ? mapping : Mapping.TPH);
         }
 
-        [ConditionalFact]
-        public void Can_use_relational_model_with_views()
+        [ConditionalTheory]
+        [InlineData(Mapping.TPH)]
+        [InlineData(Mapping.TPT)]
+        public void Can_use_relational_model_with_views(Mapping mapping)
         {
-            var model = CreateTestModel(mapToTables: false, mapToViews: true);
+            var model = CreateTestModel(mapToTables: false, mapToViews: true, mapping);
 
             Assert.Equal(6, model.Model.GetEntityTypes().Count());
-            Assert.Equal(2, model.Views.Count());
+            Assert.Equal(mapping == Mapping.TPH ? 2 : 3, model.Views.Count());
             Assert.Empty(model.Tables);
             Assert.True(model.Model.GetEntityTypes().All(et => !et.GetTableMappings().Any()));
 
-            AssertViews(model);
+            AssertViews(model, mapping);
         }
 
-        [ConditionalFact]
-        public void Can_use_relational_model_with_views_and_tables()
+        [ConditionalTheory]
+        [InlineData(Mapping.TPH)]
+        [InlineData(Mapping.TPT)]
+        public void Can_use_relational_model_with_views_and_tables(Mapping mapping)
         {
-            var model = CreateTestModel(mapToTables: true, mapToViews: true);
+            var model = CreateTestModel(mapToTables: true, mapToViews: true, mapping);
 
             Assert.Equal(6, model.Model.GetEntityTypes().Count());
-            Assert.Equal(2, model.Tables.Count());
-            Assert.Equal(2, model.Views.Count());
+            Assert.Equal(mapping == Mapping.TPH ? 2 : 3, model.Tables.Count());
+            Assert.Equal(mapping == Mapping.TPH ? 2 : 3, model.Views.Count());
 
-            AssertTables(model);
-            AssertViews(model);
+            AssertTables(model, mapping);
+            AssertViews(model, mapping);
         }
 
-        private static void AssertViews(IRelationalModel model)
+        private static void AssertViews(IRelationalModel model, Mapping mapping)
         {
             var orderType = model.Model.FindEntityType(typeof(Order));
             var orderMapping = orderType.GetViewMappings().Single();
@@ -111,15 +116,51 @@ namespace Microsoft.EntityFrameworkCore.Metadata
             Assert.Same(ordersView, orderDateColumn.Table);
 
             var customerType = model.Model.FindEntityType(typeof(Customer));
-            var customerView = customerType.GetViewMappings().Single().Table;
+            var customerView = customerType.GetViewMappings().Single().View;
             Assert.Equal("CustomerView", customerView.Name);
             Assert.Equal("viewSchema", customerView.Schema);
 
             var specialCustomerType = model.Model.FindEntityType(typeof(SpecialCustomer));
-            Assert.Same(customerView, specialCustomerType.GetViewMappings().Single().Table);
+            var customerPk = specialCustomerType.FindPrimaryKey();
+
+            if (mapping == Mapping.TPT)
+            {
+                Assert.Equal(2, specialCustomerType.GetViewMappings().Count());
+                Assert.True(specialCustomerType.GetViewMappings().First().IsMainTableMapping);
+                Assert.False(specialCustomerType.GetViewMappings().Last().IsMainTableMapping);
+
+                var specialCustomerView = specialCustomerType.GetViewMappings().Select(t => t.Table).First(t => t.Name == "SpecialCustomerView");
+                Assert.Null(specialCustomerView.Schema);
+                Assert.Equal(3, specialCustomerView.Columns.Count());
+
+                Assert.True(specialCustomerView.EntityTypeMappings.Single().IsMainEntityTypeMapping);
+
+                var specialityColumn = specialCustomerView.Columns.Single(c => c.Name == nameof(SpecialCustomer.Speciality));
+                Assert.False(specialityColumn.IsNullable);
+
+                Assert.Null(customerType.GetDiscriminatorProperty());
+                Assert.Null(customerType.GetDiscriminatorValue());
+                Assert.Null(specialCustomerType.GetDiscriminatorProperty());
+                Assert.Null(specialCustomerType.GetDiscriminatorValue());
+            }
+            else
+            {
+                var specialCustomerViewMapping = specialCustomerType.GetViewMappings().Single();
+                Assert.True(specialCustomerViewMapping.IsMainTableMapping);
+
+                var specialCustomerView = specialCustomerViewMapping.View;
+                Assert.Same(customerView, specialCustomerView);
+
+                Assert.Equal(2, specialCustomerView.EntityTypeMappings.Count());
+                Assert.True(specialCustomerView.EntityTypeMappings.First().IsMainEntityTypeMapping);
+                Assert.False(specialCustomerView.EntityTypeMappings.Last().IsMainEntityTypeMapping);
+
+                var specialityColumn = specialCustomerView.Columns.Single(c => c.Name == nameof(SpecialCustomer.Speciality));
+                Assert.True(specialityColumn.IsNullable);
+            }
         }
 
-        private static void AssertTables(IRelationalModel model)
+        private static void AssertTables(IRelationalModel model, Mapping mapping)
         {
             var orderType = model.Model.FindEntityType(typeof(Order));
             var orderMapping = orderType.GetTableMappings().Single();
@@ -214,16 +255,92 @@ namespace Microsoft.EntityFrameworkCore.Metadata
             var customerType = model.Model.FindEntityType(typeof(Customer));
             var customerTable = customerType.GetTableMappings().Single().Table;
             Assert.Equal("Customer", customerTable.Name);
-            Assert.Empty(customerTable.ForeignKeyConstraints);
 
             var specialCustomerType = model.Model.FindEntityType(typeof(SpecialCustomer));
-            Assert.Same(customerTable, specialCustomerType.GetTableMappings().Single().Table);
+            var customerPk = specialCustomerType.FindPrimaryKey();
+
+            if (mapping == Mapping.TPT)
+            {
+                Assert.Equal(2, specialCustomerType.GetTableMappings().Count());
+                Assert.True(specialCustomerType.GetTableMappings().First().IsMainTableMapping);
+                Assert.False(specialCustomerType.GetTableMappings().Last().IsMainTableMapping);
+
+                var specialCustomerTable = specialCustomerType.GetTableMappings().Select(t => t.Table).First(t => t.Name == "SpecialCustomer");
+                Assert.Equal("SpecialSchema", specialCustomerTable.Schema);
+                Assert.Equal(3, specialCustomerTable.Columns.Count());
+
+                Assert.True(specialCustomerTable.EntityTypeMappings.Single().IsMainEntityTypeMapping);
+
+                var specialityColumn = specialCustomerTable.Columns.Single(c => c.Name == nameof(SpecialCustomer.Speciality));
+                Assert.False(specialityColumn.IsNullable);
+
+                Assert.Equal(2, customerPk.GetMappedConstraints().Count());
+                var specialCustomerPkConstraint = specialCustomerTable.PrimaryKey;
+                Assert.Equal("PK_SpecialCustomer", specialCustomerPkConstraint.Name);
+                Assert.Same(specialCustomerPkConstraint.MappedKeys.Single(), customerPk);
+
+                var idProperty = customerPk.Properties.Single();
+                Assert.Equal(3, idProperty.GetTableColumnMappings().Count());
+
+                Assert.Empty(customerTable.ForeignKeyConstraints);
+
+                var specialCustomerUniqueConstraint = customerTable.UniqueConstraints.Single(c => !c.IsPrimaryKey);
+                Assert.Equal("AK_Customer_SpecialityAk", specialCustomerUniqueConstraint.Name);
+                Assert.NotNull(specialCustomerUniqueConstraint.MappedKeys.Single());
+
+                var specialCustomerFkConstraint = specialCustomerTable.ForeignKeyConstraints.Single();
+                Assert.Equal("FK_SpecialCustomer_Customer_RelatedCustomerSpeciality", specialCustomerFkConstraint.Name);
+                Assert.Same(customerTable, specialCustomerFkConstraint.PrincipalTable);
+                Assert.NotNull(specialCustomerFkConstraint.MappedForeignKeys.Single());
+
+                var specialCustomerDbIndex = specialCustomerTable.Indexes.Single();
+                Assert.Equal("IX_SpecialCustomer_RelatedCustomerSpeciality", specialCustomerDbIndex.Name);
+                Assert.NotNull(specialCustomerDbIndex.MappedIndexes.Single());
+
+                Assert.Null(customerType.GetDiscriminatorProperty());
+                Assert.Null(customerType.GetDiscriminatorValue());
+                Assert.Null(specialCustomerType.GetDiscriminatorProperty());
+                Assert.Null(specialCustomerType.GetDiscriminatorValue());
+            }
+            else
+            {
+                var specialCustomerTypeMapping = specialCustomerType.GetTableMappings().Single();
+                Assert.True(specialCustomerTypeMapping.IsMainTableMapping);
+
+                var specialCustomerTable = specialCustomerTypeMapping.Table;
+                Assert.Same(customerTable, specialCustomerTable);
+
+                Assert.Equal(2, specialCustomerTable.EntityTypeMappings.Count());
+                Assert.True(specialCustomerTable.EntityTypeMappings.First().IsMainEntityTypeMapping);
+                Assert.False(specialCustomerTable.EntityTypeMappings.Last().IsMainEntityTypeMapping);
+
+                var specialityColumn = specialCustomerTable.Columns.Single(c => c.Name == nameof(SpecialCustomer.Speciality));
+                Assert.True(specialityColumn.IsNullable);
+
+                var specialCustomerPkConstraint = specialCustomerTable.PrimaryKey;
+                Assert.Equal("PK_Customer", specialCustomerPkConstraint.Name);
+                Assert.Same(specialCustomerPkConstraint.MappedKeys.Single(), customerPk);
+
+                var idProperty = customerPk.Properties.Single();
+                Assert.Equal(2, idProperty.GetTableColumnMappings().Count());
+
+                var specialCustomerUniqueConstraint = specialCustomerTable.UniqueConstraints.Single(c => !c.IsPrimaryKey);
+                Assert.Equal("AK_Customer_SpecialityAk", specialCustomerUniqueConstraint.Name);
+                Assert.NotNull(specialCustomerUniqueConstraint.MappedKeys.Single());
+
+                var specialCustomerFkConstraint = specialCustomerTable.ForeignKeyConstraints.Single();
+                Assert.Equal("FK_Customer_Customer_RelatedCustomerSpeciality", specialCustomerFkConstraint.Name);
+                Assert.NotNull(specialCustomerFkConstraint.MappedForeignKeys.Single());
+
+                var specialCustomerDbIndex = specialCustomerTable.Indexes.Single();
+                Assert.Equal("IX_Customer_RelatedCustomerSpeciality", specialCustomerDbIndex.Name);
+                Assert.NotNull(specialCustomerDbIndex.MappedIndexes.Single());
+            }
         }
 
-        private IRelationalModel CreateTestModel(bool mapToTables = false, bool mapToViews = false)
+        private IRelationalModel CreateTestModel(bool mapToTables = false, bool mapToViews = false, Mapping mapping = Mapping.TPH)
         {
             var modelBuilder = CreateConventionModelBuilder();
-
             modelBuilder.Entity<Customer>(cb =>
             {
                 if (mapToViews)
@@ -235,8 +352,31 @@ namespace Microsoft.EntityFrameworkCore.Metadata
                 {
                     cb.ToTable("Customer");
                 }
+
+                cb.Property<string>("SpecialityAk");
             });
-            modelBuilder.Entity<SpecialCustomer>();
+
+            modelBuilder.Entity<SpecialCustomer>(cb =>
+            {
+                if (mapToViews
+                    && mapping == Mapping.TPT)
+                {
+                    cb.ToView("SpecialCustomerView");
+                }
+
+                if (mapToTables
+                    && mapping == Mapping.TPT)
+                {
+                    cb.ToTable("SpecialCustomer", "SpecialSchema");
+                }
+
+                cb.Property(s => s.Speciality).IsRequired();
+
+                cb.HasOne(c => c.RelatedCustomer).WithOne()
+                    .HasForeignKey<SpecialCustomer>(c => c.RelatedCustomerSpeciality)
+                    .HasPrincipalKey<SpecialCustomer>("SpecialityAk"); // TODO: Use the derived one, #2611
+            });
+
             modelBuilder.Entity<Order>(ob =>
             {
                 ob.Property(od => od.OrderDate).HasColumnName("OrderDate");
@@ -264,7 +404,58 @@ namespace Microsoft.EntityFrameworkCore.Metadata
             return modelBuilder.FinalizeModel().GetRelationalModel();
         }
 
+        [ConditionalFact]
+        public void Can_use_relational_model_with_keyless_TPH()
+        {
+            var modelBuilder = CreateConventionModelBuilder();
+
+            modelBuilder.Entity<Customer>(cb =>
+            {
+                cb.Ignore(c => c.Orders);
+                cb.ToView("CustomerView");
+            });
+
+            modelBuilder.Entity<SpecialCustomer>(cb =>
+            {
+                cb.Property(s => s.Speciality).IsRequired();
+            });
+
+            var model = modelBuilder.FinalizeModel().GetRelationalModel();
+
+            Assert.Equal(2, model.Model.GetEntityTypes().Count());
+            Assert.Empty(model.Tables);
+            Assert.Single(model.Views);
+
+            var customerType = model.Model.FindEntityType(typeof(Customer));
+            Assert.NotNull(customerType.GetDiscriminatorProperty());
+
+            var customerView = customerType.GetViewMappings().Single().View;
+            Assert.Equal("CustomerView", customerView.Name);
+
+            var specialCustomerType = model.Model.FindEntityType(typeof(SpecialCustomer));
+
+            var specialCustomerTypeMapping = specialCustomerType.GetViewMappings().Single();
+            Assert.True(specialCustomerTypeMapping.IsMainTableMapping);
+
+            var specialCustomerView = specialCustomerTypeMapping.View;
+            Assert.Same(customerView, specialCustomerView);
+
+            Assert.Equal(2, specialCustomerView.EntityTypeMappings.Count());
+            Assert.True(specialCustomerView.EntityTypeMappings.First().IsMainEntityTypeMapping);
+            Assert.False(specialCustomerView.EntityTypeMappings.Last().IsMainEntityTypeMapping);
+
+            var specialityColumn = specialCustomerView.Columns.Single(c => c.Name == nameof(SpecialCustomer.Speciality));
+            Assert.True(specialityColumn.IsNullable);
+        }
+
         protected virtual ModelBuilder CreateConventionModelBuilder() => RelationalTestHelpers.Instance.CreateConventionBuilder();
+
+        public enum Mapping
+        {
+            TPH,
+            TPT,
+            TPC
+        }
 
         private enum MyEnum : ulong
         {
@@ -286,6 +477,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata
         private class SpecialCustomer : Customer
         {
             public string Speciality { get; set; }
+            public string RelatedCustomerSpeciality { get; set; }
+            public SpecialCustomer RelatedCustomer { get; set; }
         }
 
         private class Order

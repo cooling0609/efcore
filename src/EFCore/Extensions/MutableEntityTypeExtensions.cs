@@ -32,14 +32,24 @@ namespace Microsoft.EntityFrameworkCore
             => (IMutableEntityType)((IEntityType)entityType).GetRootType();
 
         /// <summary>
-        ///     Gets all types in the model which a given entity type derives from.
+        ///     Gets all types in the model which a given entity type derives from, starting with the root.
         /// </summary>
-        /// <param name="entityType"> The type to find base types. </param>
+        /// <param name="entityType"> The type to find base types for. </param>
         /// <returns>
         ///     The base types.
         /// </returns>
         public static IEnumerable<IMutableEntityType> GetAllBaseTypes([NotNull] this IMutableEntityType entityType)
-            => entityType.GetAllBaseTypesAscending().Reverse().Cast<IMutableEntityType>();
+            => entityType.GetAllBaseTypesAscending().Reverse();
+
+        /// <summary>
+        ///     Gets all types in the model which a given entity type derives from, starting with the closest one.
+        /// </summary>
+        /// <param name="entityType"> The type to find base types for. </param>
+        /// <returns>
+        ///     The base types.
+        /// </returns>
+        public static IEnumerable<IMutableEntityType> GetAllBaseTypesAscending([NotNull] this IMutableEntityType entityType)
+            => entityType.GetAllBaseTypesInclusiveAscending().Skip(1).Cast<IMutableEntityType>();
 
         /// <summary>
         ///     Gets all types in the model that derive from a given entity type.

@@ -57,14 +57,24 @@ namespace Microsoft.EntityFrameworkCore
         }
 
         /// <summary>
-        ///     Gets all types in the model which a given entity type derives from.
+        ///     Gets all types in the model which a given entity type derives from, starting with the root.
         /// </summary>
-        /// <param name="entityType"> The type to find base types. </param>
+        /// <param name="entityType"> The type to find base types for. </param>
         /// <returns>
         ///     The base types.
         /// </returns>
         public static IEnumerable<IEntityType> GetAllBaseTypes([NotNull] this IEntityType entityType)
             => entityType.GetAllBaseTypesAscending().Reverse();
+
+        /// <summary>
+        ///     Gets all types in the model which a given entity type derives from, starting with the closest one.
+        /// </summary>
+        /// <param name="entityType"> The type to find base types for. </param>
+        /// <returns>
+        ///     The base types.
+        /// </returns>
+        public static IEnumerable<IEntityType> GetAllBaseTypesAscending([NotNull] this IEntityType entityType)
+            => entityType.GetAllBaseTypesInclusiveAscending().Skip(1);
 
         /// <summary>
         ///     Gets all types in the model that derive from a given entity type.

@@ -7,6 +7,7 @@ using System.Text;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Utilities;
 
 // ReSharper disable once CheckNamespace
@@ -22,9 +23,32 @@ namespace Microsoft.EntityFrameworkCore
         /// </summary>
         /// <param name="foreignKey"> The foreign key. </param>
         /// <returns> The foreign key constraint name. </returns>
-        public static string GetConstraintName([NotNull] this IForeignKey foreignKey) =>
-            (string)foreignKey[RelationalAnnotationNames.Name]
-            ?? foreignKey.GetDefaultName();
+        public static string GetConstraintName([NotNull] this IForeignKey foreignKey)
+            => foreignKey.GetConstraintName(
+                foreignKey.DeclaringEntityType.GetTableName(), foreignKey.DeclaringEntityType.GetSchema(),
+                foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema());
+
+        /// <summary>
+        ///     Returns the foreign key constraint name.
+        /// </summary>
+        /// <param name="foreignKey"> The foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <param name="principalTableName"> The principal table name. </param>
+        /// <param name="principalSchema"> The principal schema. </param>
+        /// <returns> The foreign key constraint name. </returns>
+        public static string GetConstraintName(
+            [NotNull] this IForeignKey foreignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema,
+            [NotNull] string principalTableName,
+            [CanBeNull] string principalSchema)
+        {
+            var annotation = foreignKey.FindAnnotation(RelationalAnnotationNames.Name);
+            return annotation != null
+                ? (string)annotation.Value
+                : foreignKey.GetDefaultName(tableName, schema, principalTableName, principalSchema);
+        }
 
         /// <summary>
         ///     Returns the default constraint name that would be used for this foreign key.
@@ -32,14 +56,33 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="foreignKey"> The foreign key. </param>
         /// <returns> The default constraint name that would be used for this foreign key. </returns>
         public static string GetDefaultName([NotNull] this IForeignKey foreignKey)
+            => foreignKey.GetDefaultName(
+                foreignKey.DeclaringEntityType.GetTableName(), foreignKey.DeclaringEntityType.GetSchema(),
+                foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema());
+
+        /// <summary>
+        ///     Returns the default constraint name that would be used for this foreign key.
+        /// </summary>
+        /// <param name="foreignKey"> The foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <param name="principalTableName"> The principal table name. </param>
+        /// <param name="principalSchema"> The principal schema. </param>
+        /// <returns> The default constraint name that would be used for this foreign key. </returns>
+        public static string GetDefaultName(
+            [NotNull] this IForeignKey foreignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema,
+            [NotNull] string principalTableName,
+            [CanBeNull] string principalSchema)
         {
             var baseName = new StringBuilder()
                 .Append("FK_")
-                .Append(foreignKey.DeclaringEntityType.GetTableName())
+                .Append(tableName)
                 .Append("_")
-                .Append(foreignKey.PrincipalEntityType.GetTableName())
+                .Append(principalTableName)
                 .Append("_")
-                .AppendJoin(foreignKey.Properties.Select(p => p.GetColumnName()), "_")
+                .AppendJoin(foreignKey.Properties.Select(p => p.GetColumnName(tableName, schema)), "_")
                 .ToString();
 
             return Uniquifier.Truncate(baseName, foreignKey.DeclaringEntityType.Model.GetMaxIdentifierLength());
@@ -90,5 +133,103 @@ namespace Microsoft.EntityFrameworkCore
         public static IEnumerable<IForeignKeyConstraint> GetMappedConstraints([NotNull] this IForeignKey foreignKey) =>
             (IEnumerable<IForeignKeyConstraint>)foreignKey[RelationalAnnotationNames.ForeignKeyMappings]
                 ?? Enumerable.Empty<IForeignKeyConstraint>();
+
+        /// <summary>
+        ///     <para>
+        ///         Finds the first <see cref="IForeignKey" /> that is mapped to the same constraint in a shared table.
+        ///     </para>
+        ///     <para>
+        ///         This method is typically used by database providers (and other extensions). It is generally
+        ///         not used in application code.
+        ///     </para>
+        /// </summary>
+        /// <param name="foreignKey"> The foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <param name="principalTableName"> The principal table name. </param>
+        /// <param name="principalSchema"> The principal schema. </param>
+        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        public static IForeignKey FindSharedTableRootForeignKey(
+            [NotNull] this IForeignKey foreignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema,
+            [NotNull] string principalTableName,
+            [CanBeNull] string principalSchema)
+        {
+            Check.NotNull(foreignKey, nameof(foreignKey));
+            Check.NotNull(tableName, nameof(tableName));
+            Check.NotNull(principalTableName, nameof(principalTableName));
+
+            var foreignKeyName = foreignKey.GetConstraintName(tableName, schema,
+                foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema());
+            var rootForeignKey = foreignKey;
+
+            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
+            for (var i = 0; i < 128; i++)
+            {
+                var linkedKey = rootForeignKey.DeclaringEntityType
+                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .SelectMany(fk => fk.PrincipalEntityType.GetForeignKeys())
+                    .FirstOrDefault(k => k.GetConstraintName(tableName, schema,
+                        foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema())
+                        == foreignKeyName);
+                if (linkedKey == null)
+                {
+                    break;
+                }
+
+                rootForeignKey = linkedKey;
+            }
+
+            return rootForeignKey == foreignKey ? null : rootForeignKey;
+        }
+
+        /// <summary>
+        ///     <para>
+        ///         Finds the first <see cref="IMutableForeignKey" /> that is mapped to the same constraint in a shared table.
+        ///     </para>
+        ///     <para>
+        ///         This method is typically used by database providers (and other extensions). It is generally
+        ///         not used in application code.
+        ///     </para>
+        /// </summary>
+        /// <param name="foreignKey"> The foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <param name="principalTableName"> The principal table name. </param>
+        /// <param name="principalSchema"> The principal schema. </param>
+        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        public static IMutableForeignKey FindSharedTableRootForeignKey(
+            [NotNull] this IMutableForeignKey foreignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema,
+            [NotNull] string principalTableName,
+            [CanBeNull] string principalSchema)
+            => (IMutableForeignKey)((IForeignKey)foreignKey).FindSharedTableRootForeignKey(
+                tableName, schema, principalTableName, principalSchema);
+
+        /// <summary>
+        ///     <para>
+        ///         Finds the first <see cref="IConventionForeignKey" /> that is mapped to the same constraint in a shared table.
+        ///     </para>
+        ///     <para>
+        ///         This method is typically used by database providers (and other extensions). It is generally
+        ///         not used in application code.
+        ///     </para>
+        /// </summary>
+        /// <param name="foreignKey"> The foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <param name="principalTableName"> The principal table name. </param>
+        /// <param name="principalSchema"> The principal schema. </param>
+        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        public static IConventionForeignKey FindSharedTableRootForeignKey(
+            [NotNull] this IConventionForeignKey foreignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema,
+            [NotNull] string principalTableName,
+            [CanBeNull] string principalSchema)
+            => (IConventionForeignKey)((IForeignKey)foreignKey).FindSharedTableRootForeignKey(
+                tableName, schema, principalTableName, principalSchema);
     }
 }

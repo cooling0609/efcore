@@ -1,10 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -16,17 +13,25 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public class Table : TableBase, ITable
+    public class RelationalPropertyOverrides : ConventionAnnotatable
     {
+        private string _columnName;
+        private string _viewColumnName;
+
+        private ConfigurationSource? _columnNameConfigurationSource;
+        private ConfigurationSource? _viewColumnNameConfigurationSource;
+
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
         ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public Table([NotNull] string name, [CanBeNull] string schema, [NotNull] RelationalModel model)
-            : base(name, schema, model)
+        public virtual string ColumnName
         {
+            get => _columnName;
+            [param: CanBeNull]
+            set => SetColumnName(value, ConfigurationSource.Explicit);
         }
 
         /// <summary>
@@ -35,8 +40,13 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual SortedSet<TableMapping> EntityTypeMappings { get; } = new SortedSet<TableMapping>(
-            TableMappingBaseComparer.TableInstance);
+        public virtual string SetColumnName([CanBeNull] string columnName, ConfigurationSource configurationSource)
+        {
+            _columnName = columnName;
+            _columnNameConfigurationSource = configurationSource.Max(_columnNameConfigurationSource);
+
+            return columnName;
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -44,8 +54,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual SortedDictionary<string, ForeignKeyConstraint> ForeignKeyConstraints { get; }
-            = new SortedDictionary<string, ForeignKeyConstraint>();
+        public virtual void ClearColumnName()
+        {
+            _columnName = null;
+            _columnNameConfigurationSource = null;
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -53,7 +66,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual UniqueConstraint PrimaryKey { get; [param: NotNull] set; }
+        public virtual ConfigurationSource? GetColumnNameConfigurationSource() => _columnNameConfigurationSource;
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -61,8 +74,12 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual SortedDictionary<string, UniqueConstraint> UniqueConstraints { get; }
-            = new SortedDictionary<string, UniqueConstraint>();
+        public virtual string ViewColumnName
+        {
+            get => _viewColumnName;
+            [param: CanBeNull]
+            set => SetViewColumnName(value, ConfigurationSource.Explicit);
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -70,12 +87,13 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual UniqueConstraint FindUniqueConstraint([NotNull] string name)
-            => PrimaryKey != null && PrimaryKey.Name == name
-                ? PrimaryKey
-                : UniqueConstraints.TryGetValue(name, out var constraint)
-                    ? constraint
-                    : null;
+        public virtual string SetViewColumnName([CanBeNull] string columnName, ConfigurationSource configurationSource)
+        {
+            _viewColumnName = columnName;
+            _viewColumnNameConfigurationSource = configurationSource.Max(_viewColumnNameConfigurationSource);
+
+            return columnName;
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -83,11 +101,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual SortedDictionary<string, TableIndex> Indexes { get; }
-            = new SortedDictionary<string, TableIndex>();
-
-        /// <inheritdoc/>
-        public virtual bool IsMigratable { get; set; }
+        public virtual void ClearViewColumnName()
+        {
+            _viewColumnName = null;
+            _viewColumnNameConfigurationSource = null;
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -95,13 +113,24 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public virtual SortedDictionary<string, Column> Columns { get; } = new SortedDictionary<string, Column>(StringComparer.Ordinal);
+        public virtual ConfigurationSource? GetViewColumnNameConfigurationSource() => _viewColumnNameConfigurationSource;
 
-        /// <inheritdoc/>
-        public virtual IColumn FindColumn(string name)
-            => Columns.TryGetValue(name, out var column)
-                ? column
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public static RelationalPropertyOverrides Find(
+            [NotNull] IProperty property, [NotNull] string tableName, [CanBeNull] string schema)
+        {
+            var tableOverrides = (SortedDictionary<(string, string), RelationalPropertyOverrides>)
+                property[RelationalAnnotationNames.RelationalOverrides];
+            return tableOverrides != null
+                && tableOverrides.TryGetValue((tableName, schema), out var overrides)
+                ? overrides
                 : null;
+        }
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -109,79 +138,34 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public override string ToString() => this.ToDebugString(MetadataDebugStringOptions.SingleLineDefault);
-
-        /// <inheritdoc/>
-        IEnumerable<IColumnBase> ITableBase.Columns
+        public static RelationalPropertyOverrides GetOrCreate(
+            [NotNull] IMutableProperty property, [NotNull] string tableName, [CanBeNull] string schema)
         {
-            [DebuggerStepThrough]
-            get => Columns.Values;
+            var tableOverrides = (SortedDictionary<(string, string), RelationalPropertyOverrides>)
+                property[RelationalAnnotationNames.RelationalOverrides];
+            if (tableOverrides == null)
+            {
+                tableOverrides = new SortedDictionary<(string, string), RelationalPropertyOverrides>();
+                property[RelationalAnnotationNames.RelationalOverrides] = tableOverrides;
+            }
+
+            if (!tableOverrides.TryGetValue((tableName, schema), out var overrides))
+            {
+                overrides = new RelationalPropertyOverrides();
+                tableOverrides.Add((tableName, schema), overrides);
+            }
+
+            return overrides;
         }
 
-        /// <inheritdoc/>
-        IEnumerable<IColumn> ITable.Columns
-        {
-            [DebuggerStepThrough]
-            get => Columns.Values;
-        }
-
-        /// <inheritdoc/>
-        IEnumerable<ITableMapping> ITable.EntityTypeMappings
-        {
-            [DebuggerStepThrough]
-            get => EntityTypeMappings;
-        }
-
-        /// <inheritdoc/>
-        IEnumerable<ITableMappingBase> ITableBase.EntityTypeMappings
-        {
-            [DebuggerStepThrough]
-            get => EntityTypeMappings;
-        }
-
-        /// <inheritdoc/>
-        IEnumerable<IForeignKeyConstraint> ITable.ForeignKeyConstraints
-        {
-            [DebuggerStepThrough]
-            get => ForeignKeyConstraints.Values;
-        }
-
-        /// <inheritdoc/>
-        IUniqueConstraint ITable.PrimaryKey
-        {
-            [DebuggerStepThrough]
-            get => PrimaryKey;
-        }
-
-        /// <inheritdoc/>
-        IEnumerable<IUniqueConstraint> ITable.UniqueConstraints
-        {
-            [DebuggerStepThrough]
-            get => UniqueConstraints.Values;
-        }
-
-        /// <inheritdoc/>
-        IEnumerable<ITableIndex> ITable.Indexes
-        {
-            [DebuggerStepThrough]
-            get => Indexes.Values;
-        }
-
-        /// <inheritdoc/>
-        IColumnBase ITableBase.FindColumn(string name) => FindColumn(name);
-
-        /// <inheritdoc/>
-        IEnumerable<IForeignKey> ITableBase.GetInternalForeignKeys(IEntityType entityType)
-            => InternalForeignKeys != null
-                && InternalForeignKeys.TryGetValue(entityType, out var foreignKeys)
-                ? foreignKeys
-                : Enumerable.Empty<IForeignKey>();
-
-        /// <inheritdoc/>
-        IEnumerable<IForeignKey> ITableBase.GetReferencingInternalForeignKeys(IEntityType entityType)
-            => ReferencingInternalForeignKeys != null
-                && ReferencingInternalForeignKeys.TryGetValue(entityType, out var foreignKeys)
-                ? foreignKeys
-                : Enumerable.Empty<IForeignKey>();
+        /// <summary>
+        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+        ///     any release. You should only use it directly in your code with extreme caution and knowing that
+        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+        /// </summary>
+        public static RelationalPropertyOverrides GetOrCreate(
+            [NotNull] IConventionProperty property, [NotNull] string tableName, [CanBeNull] string schema)
+            => GetOrCreate((IMutableProperty)property, tableName, schema);
     }
 }
