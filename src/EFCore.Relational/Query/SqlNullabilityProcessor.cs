@@ -751,6 +751,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
             return scalarSubqueryExpression.Update(Visit(scalarSubqueryExpression.Subquery));
         }
+
         /// <summary>
         ///     Visits a <see cref="SqlBinaryExpression"/> and computes its nullability.
         /// </summary>
@@ -758,11 +759,43 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlBinary(
             [NotNull] SqlBinaryExpression sqlBinaryExpression, bool allowOptimizedExpansion, out bool nullable)
         {
             Check.NotNull(sqlBinaryExpression, nameof(sqlBinaryExpression));
+
+            // we need to do this before we visit left/right
+            // otherwise detecting CompareTo block becomes hard due to null semantics expansion
+            // also we need to apply null semantics on the potential result
+            var sqlConstantExpression = sqlBinaryExpression.Left as SqlConstantExpression ?? sqlBinaryExpression.Right as SqlConstantExpression;
+            var caseExpression = sqlBinaryExpression.Left as CaseExpression ?? sqlBinaryExpression.Right as CaseExpression;
+            if (sqlConstantExpression != null
+                && sqlConstantExpression.Value != null
+                && IsCompareTo(caseExpression)
+                && sqlConstantExpression.Value is int intValue
+                && (intValue == 0 || intValue == 1 || intValue == -1)
+                && (sqlBinaryExpression.OperatorType == ExpressionType.NotEqual
+                    || sqlBinaryExpression.OperatorType == ExpressionType.GreaterThan
+                    || sqlBinaryExpression.OperatorType == ExpressionType.GreaterThanOrEqual
+                    || sqlBinaryExpression.OperatorType == ExpressionType.LessThan
+                    || sqlBinaryExpression.OperatorType == ExpressionType.LessThanOrEqual))
+            {
+                var compareToOptimized = OptimizeCompareTo(
+                    sqlBinaryExpression,
+                    intValue,
+                    caseExpression);
+
+                if (compareToOptimized is SqlConstantExpression)
+                {
+                    nullable = true;
+
+                    return compareToOptimized;
+                }
+                else
+                {
+                    sqlBinaryExpression = (SqlBinaryExpression)compareToOptimized;
+                }
+            }
 
             var optimize = allowOptimizedExpansion;
 
@@ -862,7 +895,6 @@ namespace Microsoft.EntityFrameworkCore.Query
             }
 
             nullable = leftNullable || rightNullable;
-
             var result = sqlBinaryExpression.Update(left, right);
 
             return result is SqlBinaryExpression sqlBinaryResult
@@ -876,6 +908,121 @@ namespace Microsoft.EntityFrameworkCore.Query
                 ? (SqlExpression)_sqlExpressionFactory.Constant(string.Empty, typeMapping)
                 : _sqlExpressionFactory.Coalesce(argument, _sqlExpressionFactory.Constant(string.Empty, typeMapping));
         }
+
+        private bool IsCompareTo(CaseExpression caseExpression)
+        {
+            if (caseExpression != null
+                && caseExpression.Operand == null
+                && caseExpression.WhenClauses.Count == 3
+                && caseExpression.WhenClauses.All(c => c.Test is SqlBinaryExpression
+                    && c.Result is SqlConstantExpression constant
+                    && constant.Value is int))
+            {
+                var whenClauses = caseExpression.WhenClauses.Select(c => new
+                {
+                    test = (SqlBinaryExpression)c.Test,
+                    resultValue = (int)((SqlConstantExpression)c.Result).Value
+                }).ToList();
+
+                if (whenClauses[0].test.Left.Equals(whenClauses[1].test.Left)
+                    && whenClauses[1].test.Left.Equals(whenClauses[2].test.Left)
+                    && whenClauses[0].test.Right.Equals(whenClauses[1].test.Right)
+                    && whenClauses[1].test.Right.Equals(whenClauses[2].test.Right)
+                    && whenClauses[0].test.OperatorType == ExpressionType.Equal
+                    && whenClauses[1].test.OperatorType == ExpressionType.GreaterThan
+                    && whenClauses[2].test.OperatorType == ExpressionType.LessThan
+                    && whenClauses[0].resultValue == 0
+                    && whenClauses[1].resultValue == 1
+                    && whenClauses[2].resultValue == -1)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private SqlExpression OptimizeCompareTo(
+            SqlBinaryExpression sqlBinaryExpression,
+            int intValue,
+            CaseExpression caseExpression)
+        {
+            var testLeft = ((SqlBinaryExpression)caseExpression.WhenClauses[0].Test).Left;
+            var testRight = ((SqlBinaryExpression)caseExpression.WhenClauses[0].Test).Right;
+            var operatorType = sqlBinaryExpression.Right is SqlConstantExpression
+                ? sqlBinaryExpression.OperatorType
+                : sqlBinaryExpression.OperatorType switch
+                {
+                    ExpressionType.GreaterThan => ExpressionType.LessThan,
+                    ExpressionType.GreaterThanOrEqual => ExpressionType.LessThanOrEqual,
+                    ExpressionType.LessThan => ExpressionType.GreaterThan,
+                    ExpressionType.LessThanOrEqual => ExpressionType.GreaterThanOrEqual,
+                    _ => sqlBinaryExpression.OperatorType
+                };
+
+            if (operatorType == ExpressionType.NotEqual)
+            {
+                // CompareTo(a, b) != 0 -> a != b
+                // CompareTo(a, b) != 1 -> a <= b
+                // CompareTo(a, b) != -1 -> a >= b
+                return intValue switch
+                {
+                    0 => _sqlExpressionFactory.NotEqual(testLeft, testRight),
+                    1 => _sqlExpressionFactory.LessThanOrEqual(testLeft, testRight),
+                    _ => _sqlExpressionFactory.GreaterThanOrEqual(testLeft, testRight),
+                };
+            }
+            else if (operatorType == ExpressionType.GreaterThan)
+            {
+                // CompareTo(a, b) > 0 -> a > b
+                // CompareTo(a, b) > 1 -> false
+                // CompareTo(a, b) > -1 -> a >= b
+                return intValue switch
+                {
+                    0 => _sqlExpressionFactory.GreaterThan(testLeft, testRight),
+                    1 => _sqlExpressionFactory.Constant(false, sqlBinaryExpression.TypeMapping),
+                    _ => _sqlExpressionFactory.GreaterThanOrEqual(testLeft, testRight),
+                };
+            }
+            else if (operatorType == ExpressionType.GreaterThanOrEqual)
+            {
+                // CompareTo(a, b) >= 0 -> a >= b
+                // CompareTo(a, b) >= 1 -> a > b
+                // CompareTo(a, b) >= -1 -> true
+                return intValue switch
+                {
+                    0 => _sqlExpressionFactory.GreaterThanOrEqual(testLeft, testRight),
+                    1 => _sqlExpressionFactory.GreaterThan(testLeft, testRight),
+                    _ => _sqlExpressionFactory.Constant(true, sqlBinaryExpression.TypeMapping),
+                };
+            }
+            else if (operatorType == ExpressionType.LessThan)
+            {
+                // CompareTo(a, b) < 0 -> a < b
+                // CompareTo(a, b) < 1 -> a <= b
+                // CompareTo(a, b) < -1 -> false
+                return intValue switch
+                {
+                    0 => _sqlExpressionFactory.LessThan(testLeft, testRight),
+                    1 => _sqlExpressionFactory.LessThanOrEqual(testLeft, testRight),
+                    _ => _sqlExpressionFactory.Constant(false, sqlBinaryExpression.TypeMapping),
+                };
+            }
+            else
+            {
+                // operatorType == ExpressionType.LessThanOrEqual
+                // CompareTo(a, b) <= 0 -> a <= b
+                // CompareTo(a, b) <= 1 -> true
+                // CompareTo(a, b) <= -1 -> a < b
+                return intValue switch
+                {
+                    0 => _sqlExpressionFactory.LessThanOrEqual(testLeft, testRight),
+                    1 => _sqlExpressionFactory.Constant(true, sqlBinaryExpression.TypeMapping),
+                    _ => _sqlExpressionFactory.LessThan(testLeft, testRight),
+                };
+            }
+        }
+
         /// <summary>
         ///     Visits a <see cref="SqlConstantExpression"/> and computes its nullability.
         /// </summary>
@@ -883,7 +1030,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlConstant(
             [NotNull] SqlConstantExpression sqlConstantExpression, bool allowOptimizedExpansion, out bool nullable)
         {
@@ -893,6 +1039,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
             return sqlConstantExpression;
         }
+
         /// <summary>
         ///     Visits a <see cref="SqlFragmentExpression"/> and computes its nullability.
         /// </summary>
@@ -900,7 +1047,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlFragment(
             [NotNull] SqlFragmentExpression sqlFragmentExpression, bool allowOptimizedExpansion, out bool nullable)
         {
@@ -910,6 +1056,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
             return sqlFragmentExpression;
         }
+
         /// <summary>
         ///     Visits a <see cref="SqlFunctionExpression"/> and computes its nullability.
         /// </summary>
@@ -917,7 +1064,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlFunction(
             [NotNull] SqlFunctionExpression sqlFunctionExpression, bool allowOptimizedExpansion, out bool nullable)
         {
@@ -951,6 +1097,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
             return sqlFunctionExpression.Update(instance, arguments);
         }
+
         /// <summary>
         ///     Visits a <see cref="SqlParameterExpression"/> and computes its nullability.
         /// </summary>
@@ -958,7 +1105,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlParameter(
             [NotNull] SqlParameterExpression sqlParameterExpression, bool allowOptimizedExpansion, out bool nullable)
         {
@@ -970,6 +1116,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 ? _sqlExpressionFactory.Constant(null, sqlParameterExpression.TypeMapping)
                 : (SqlExpression)sqlParameterExpression;
         }
+
         /// <summary>
         ///     Visits a <see cref="SqlUnaryExpression"/> and computes its nullability.
         /// </summary>
@@ -977,7 +1124,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         /// <param name="allowOptimizedExpansion"> A bool value indicating if optimized expansion which considers null value as false value is allowed. </param>
         /// <param name="nullable"> A bool value indicating whether the sql expression is nullable. </param>
         /// <returns> An optimized sql expression. </returns>
-
         protected virtual SqlExpression VisitSqlUnary(
             [NotNull] SqlUnaryExpression sqlUnaryExpression, bool allowOptimizedExpansion, out bool nullable)
         {
@@ -1161,6 +1307,32 @@ namespace Microsoft.EntityFrameworkCore.Query
                 return sqlBinaryExpression.OperatorType == ExpressionType.Equal ^ leftNegated == rightNegated
                     ? _sqlExpressionFactory.NotEqual(left, right)
                     : _sqlExpressionFactory.Equal(left, right);
+            }
+
+            var sqlConstantExpression = left as SqlConstantExpression ?? right as SqlConstantExpression;
+            var caseExpression = left as CaseExpression ?? right as CaseExpression;
+
+            // generic CASE statement comparison optimization:
+            // (CASE
+            //  WHEN condition1 THEN result1
+            //  WHEN condition2 THEN result2
+            //  WHEN ...
+            //  WHEN conditionN THEN resultN) == result1 -> condition1
+            if (sqlBinaryExpression.OperatorType == ExpressionType.Equal
+                && sqlConstantExpression != null
+                && sqlConstantExpression.Value != null
+                && caseExpression != null
+                && caseExpression.Operand == null)
+            {
+                var matchingCaseBlock = caseExpression.WhenClauses.FirstOrDefault(wc => sqlConstantExpression.Equals(wc.Result));
+                if (matchingCaseBlock != null)
+                {
+                    // we don't know if it's nullable since we don't store nullability of specific fragments
+                    // so we must assume it's nullable
+                    nullable = true;
+
+                    return matchingCaseBlock.Test;
+                }
             }
 
             nullable = false;

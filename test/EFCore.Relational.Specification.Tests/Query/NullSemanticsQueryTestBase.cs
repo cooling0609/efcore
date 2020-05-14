@@ -1258,6 +1258,21 @@ namespace Microsoft.EntityFrameworkCore.Query
                     == e.NullableStringB.MaybeScalar(x => x.LastOrDefault())));
         }
 
+        [ConditionalTheory]
+        [MemberData(nameof(IsAsyncData))]
+        public virtual async Task Null_semantics_applied_to_CompareTo_equality(bool async)
+        {
+            await AssertQuery(
+                async,
+                ss => ss.Set<NullSemanticsEntity1>().Where(e => e.NullableStringA.CompareTo(e.NullableStringB) == 0),
+                ss => ss.Set<NullSemanticsEntity1>().Where(e => e.NullableStringA == e.NullableStringB));
+
+            await AssertQuery(
+                async,
+                ss => ss.Set<NullSemanticsEntity1>().Where(e => e.NullableStringA.CompareTo(e.NullableStringB) != 0),
+                ss => ss.Set<NullSemanticsEntity1>().Where(e => e.NullableStringA != e.NullableStringB));
+        }
+
         private string NormalizeDelimitersInRawString(string sql)
             => Fixture.TestStore.NormalizeDelimitersInRawString(sql);
 
