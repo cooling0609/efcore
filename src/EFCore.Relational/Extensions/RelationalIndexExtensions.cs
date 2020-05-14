@@ -24,7 +24,8 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="index"> The index. </param>
         /// <returns> The name for this index. </returns>
         public static string GetName([NotNull] this IIndex index)
-            => index.GetName(index.DeclaringEntityType.GetTableName(), index.DeclaringEntityType.GetSchema());
+            => (string)index[RelationalAnnotationNames.Name]
+            ?? index.GetDefaultName();
 
         /// <summary>
         ///     Returns the name for this index.
@@ -46,7 +47,18 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="index"> The index. </param>
         /// <returns> The default name that would be used for this index. </returns>
         public static string GetDefaultName([NotNull] this IIndex index)
-            => index.GetDefaultName(index.DeclaringEntityType.GetTableName(), index.DeclaringEntityType.GetSchema());
+        {
+            var tableName = index.DeclaringEntityType.GetTableName();
+            var schema = index.DeclaringEntityType.GetSchema();
+            var baseName = new StringBuilder()
+                .Append("IX_")
+                .Append(tableName)
+                .Append("_")
+                .AppendJoin(index.Properties.Select(p => p.GetColumnName(tableName, schema)), "_")
+                .ToString();
+
+            return Uniquifier.Truncate(baseName, index.DeclaringEntityType.Model.GetMaxIdentifierLength());
+        }
 
         /// <summary>
         ///     Returns the default name that would be used for this index.
@@ -60,11 +72,35 @@ namespace Microsoft.EntityFrameworkCore
             [NotNull] string tableName,
             [CanBeNull] string schema)
         {
+            var propertyNames = index.Properties.Select(p => p.GetColumnName(tableName, schema)).ToList();
+            var rootIndex = index;
+
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
+            {
+                var linkedIndex = rootIndex.DeclaringEntityType
+                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .SelectMany(fk => fk.PrincipalEntityType.GetIndexes())
+                    .FirstOrDefault(i => i.Properties.Select(p => p.GetColumnName(tableName, schema)).SequenceEqual(propertyNames));
+                if (linkedIndex == null)
+                {
+                    break;
+                }
+
+                rootIndex = linkedIndex;
+            }
+
+            if (rootIndex != index)
+            {
+                return rootIndex.GetName(tableName, schema);
+            }
+
             var baseName = new StringBuilder()
                 .Append("IX_")
                 .Append(tableName)
                 .Append("_")
-                .AppendJoin(index.Properties.Select(p => p.GetColumnName(tableName, schema)), "_")
+                .AppendJoin(propertyNames, "_")
                 .ToString();
 
             return Uniquifier.Truncate(baseName, index.DeclaringEntityType.Model.GetMaxIdentifierLength());
@@ -203,8 +239,9 @@ namespace Microsoft.EntityFrameworkCore
             var indexName = index.GetName(tableName, schema);
             var rootIndex = index;
 
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedIndex = rootIndex.DeclaringEntityType
                     .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)

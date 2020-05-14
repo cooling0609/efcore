@@ -56,9 +56,22 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="foreignKey"> The foreign key. </param>
         /// <returns> The default constraint name that would be used for this foreign key. </returns>
         public static string GetDefaultName([NotNull] this IForeignKey foreignKey)
-            => foreignKey.GetDefaultName(
-                foreignKey.DeclaringEntityType.GetTableName(), foreignKey.DeclaringEntityType.GetSchema(),
-                foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema());
+        {
+            var tableName = foreignKey.DeclaringEntityType.GetTableName();
+            var schema = foreignKey.DeclaringEntityType.GetSchema();
+            var principalTableName = foreignKey.PrincipalEntityType.GetTableName();
+
+            var name = new StringBuilder()
+                .Append("FK_")
+                .Append(tableName)
+                .Append("_")
+                .Append(principalTableName)
+                .Append("_")
+                .AppendJoin(foreignKey.Properties.Select(p => p.GetColumnName(tableName, schema)), "_")
+                .ToString();
+
+            return Uniquifier.Truncate(name, foreignKey.DeclaringEntityType.Model.GetMaxIdentifierLength());
+        }
 
         /// <summary>
         ///     Returns the default constraint name that would be used for this foreign key.
@@ -76,6 +89,34 @@ namespace Microsoft.EntityFrameworkCore
             [NotNull] string principalTableName,
             [CanBeNull] string principalSchema)
         {
+            var propertyNames = foreignKey.Properties.Select(p => p.GetColumnName(tableName, schema)).ToList();
+            var principalPropertyNames = foreignKey.PrincipalKey.Properties.Select(p => p.GetColumnName(tableName, schema)).ToList();
+            var rootForeignKey = foreignKey;
+
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
+            {
+                var linkedForeignKey = rootForeignKey.DeclaringEntityType
+                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .SelectMany(fk => fk.PrincipalEntityType.GetForeignKeys())
+                    .FirstOrDefault(k => principalTableName == k.PrincipalEntityType.GetTableName()
+                        && principalSchema == k.PrincipalEntityType.GetSchema()
+                        && propertyNames.SequenceEqual(k.Properties.Select(p => p.GetColumnName(tableName, schema)))
+                        && principalPropertyNames.SequenceEqual(k.PrincipalKey.Properties.Select(p => p.GetColumnName(tableName, schema))));
+                if (linkedForeignKey == null)
+                {
+                    break;
+                }
+
+                rootForeignKey = linkedForeignKey;
+            }
+
+            if (rootForeignKey != foreignKey)
+            {
+                return rootForeignKey.GetConstraintName(tableName, schema, principalTableName, principalSchema);
+            }
+
             var baseName = new StringBuilder()
                 .Append("FK_")
                 .Append(tableName)
@@ -148,7 +189,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="schema"> The schema. </param>
         /// <param name="principalTableName"> The principal table name. </param>
         /// <param name="principalSchema"> The principal schema. </param>
-        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        /// <returns> The foreign key if found, or <see langword="null" /> if none was found.</returns>
         public static IForeignKey FindSharedTableRootForeignKey(
             [NotNull] this IForeignKey foreignKey,
             [NotNull] string tableName,
@@ -164,14 +205,15 @@ namespace Microsoft.EntityFrameworkCore
                 foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema());
             var rootForeignKey = foreignKey;
 
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedKey = rootForeignKey.DeclaringEntityType
                     .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
                     .SelectMany(fk => fk.PrincipalEntityType.GetForeignKeys())
                     .FirstOrDefault(k => k.GetConstraintName(tableName, schema,
-                        foreignKey.PrincipalEntityType.GetTableName(), foreignKey.PrincipalEntityType.GetSchema())
+                        k.PrincipalEntityType.GetTableName(), k.PrincipalEntityType.GetSchema())
                         == foreignKeyName);
                 if (linkedKey == null)
                 {
@@ -198,7 +240,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="schema"> The schema. </param>
         /// <param name="principalTableName"> The principal table name. </param>
         /// <param name="principalSchema"> The principal schema. </param>
-        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        /// <returns> The foreign key if found, or <see langword="null" /> if none was found.</returns>
         public static IMutableForeignKey FindSharedTableRootForeignKey(
             [NotNull] this IMutableForeignKey foreignKey,
             [NotNull] string tableName,
@@ -222,7 +264,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="schema"> The schema. </param>
         /// <param name="principalTableName"> The principal table name. </param>
         /// <param name="principalSchema"> The principal schema. </param>
-        /// <returns> The foreign key found, or <see langword="null" /> if none was found.</returns>
+        /// <returns> The foreign key if found, or <see langword="null" /> if none was found.</returns>
         public static IConventionForeignKey FindSharedTableRootForeignKey(
             [NotNull] this IConventionForeignKey foreignKey,
             [NotNull] string tableName,

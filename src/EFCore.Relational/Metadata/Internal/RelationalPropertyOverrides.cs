@@ -124,7 +124,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         public static RelationalPropertyOverrides Find(
             [NotNull] IProperty property, [NotNull] string tableName, [CanBeNull] string schema)
         {
-            var tableOverrides = (SortedDictionary<(string, string), RelationalPropertyOverrides>)
+            var tableOverrides = (SortedDictionary<(string Table, string Schema), RelationalPropertyOverrides>)
                 property[RelationalAnnotationNames.RelationalOverrides];
             return tableOverrides != null
                 && tableOverrides.TryGetValue((tableName, schema), out var overrides)
@@ -141,11 +141,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         public static RelationalPropertyOverrides GetOrCreate(
             [NotNull] IMutableProperty property, [NotNull] string tableName, [CanBeNull] string schema)
         {
-            var tableOverrides = (SortedDictionary<(string, string), RelationalPropertyOverrides>)
+            var tableOverrides = (SortedDictionary<(string Table, string Schema), RelationalPropertyOverrides>)
                 property[RelationalAnnotationNames.RelationalOverrides];
             if (tableOverrides == null)
             {
-                tableOverrides = new SortedDictionary<(string, string), RelationalPropertyOverrides>();
+                tableOverrides = new SortedDictionary<(string Table, string Schema), RelationalPropertyOverrides>();
                 property[RelationalAnnotationNames.RelationalOverrides] = tableOverrides;
             }
 

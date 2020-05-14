@@ -29,7 +29,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="index"> The index. </param>
         /// <param name="tableName"> The table name. </param>
         /// <param name="schema"> The schema. </param>
-        /// <returns> <c>true</c> if the index is clustered. </returns>
+        /// <returns> <see langword="true" /> if the index is clustered. </returns>
         public static bool? IsClustered(
             [NotNull] this IIndex index,
             [NotNull] string tableName,

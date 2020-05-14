@@ -86,9 +86,10 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
                         var mappedTable = mappedType.GetTableName();
                         var mappedSchema = mappedType.GetSchema();
 
-                        if (mappedTable == tableName
-                            && mappedSchema == schema
-                            && mappedType != entityType)
+                        if (mappedTable == null
+                            || (mappedTable == tableName
+                                && mappedSchema == schema
+                                && mappedType != entityType))
                         {
                             break;
                         }
@@ -173,9 +174,10 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
                         var mappedViewName = mappedType.GetViewName();
                         var mappedSchema = mappedType.GetViewSchema();
 
-                        if (mappedViewName == viewName
-                            && mappedSchema == schema
-                            && mappedType != entityType)
+                        if (mappedViewName == null
+                            || (mappedViewName == viewName
+                                && mappedSchema == schema
+                                && mappedType != entityType))
                         {
                             break;
                         }

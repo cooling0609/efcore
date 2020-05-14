@@ -333,10 +333,10 @@
     <value>The instance of entity type '{firstEntityType}' with the key value '{firstKeyValue}' is marked as '{firstState}', but the instance of entity type '{secondEntityType}' with the key value '{secondKeyValue}' is marked as '{secondState}' and both are mapped to the same row.</value>
   </data>
   <data name="ConflictingRowValues" xml:space="preserve">
-    <value>An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different property values for the properties {firstProperties} and {secondProperties} mapped to {columns}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.</value>
+    <value>An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different property values for the properties {firstProperty} and {secondProperty} mapped to {column}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.</value>
   </data>
   <data name="ConflictingRowValuesSensitive" xml:space="preserve">
-    <value>The instance of entity type '{firstEntityType}' and the instance of entity type '{secondEntityType}' are mapped to the same row with the key value '{keyValue}', but have different property values '{firstConflictingValues}' and '{secondConflictingValues}' for the column {columns}.</value>
+    <value>The instance of entity type '{firstEntityType}' and the instance of entity type '{secondEntityType}' are mapped to the same row with the key value '{keyValue}', but have different property values '{firstConflictingValue}' and '{secondConflictingValue}' for the column {column}.</value>
   </data>
   <data name="ConflictingOriginalRowValues" xml:space="preserve">
     <value>An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different original property values for the properties {firstProperties} and {secondProperties} mapped to {columns}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.</value>
@@ -583,13 +583,13 @@
     <value>The store type '{type}' used for the column '{column}' in a migration data operation is not supported by the current provider.</value>
   </data>
   <data name="NonTPHTableClash" xml:space="preserve">
-    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types that don't have a discriminator must be mapped to different tables.</value>
+    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different tables.</value>
   </data>
   <data name="NonTPHViewClash" xml:space="preserve">
-    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types that don't have a discriminator must be mapped to different views.</value>
+    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different views.</value>
   </data>
   <data name="TableOverrideDeclaredTable" xml:space="preserve">
-    <value>The property '{property}' has specific configuration for the table or view '{table}', however that's the main table or view that '{entityType}' is mapped to. Remove the specific configuration or change it to non-specific configuration.</value>
+    <value>The property '{property}' has configuration specific to the table or view '{table}', however that's the main table or view to which '{entityType}' is mapped. Remove the specific configuration or use the configuration that does not specify a table or view.</value>
   </data>
   <data name="TableOverrideMismatch" xml:space="preserve">
     <value>The property '{propertySpecification}' has specific configuration for the table or view '{table}', however it isn't mapped to a column on that table. Remove the specific configuration or map an entity type that contains this property to '{table}'.</value>

@@ -542,7 +542,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                     eb.Property(c => c.Breed).HasMaxLength(25);
                     eb.Property(c => c.Breed).HasColumnName("BreedName");
                     eb.Property(c => c.Breed).HasDefaultValue("None");
-                    eb.Property<string>("Selected").HasDefaultValue("false").HasConversion<bool>();
+                    eb.Property<string>("Selected").IsRequired().HasDefaultValue("false").HasConversion<bool>();
                 });
 
             Validate(modelBuilder.Model);
@@ -732,7 +732,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             var index1 = fk1.DeclaringEntityType.GetDeclaredIndexes().Single();
             var index2 = fk2.DeclaringEntityType.GetDeclaredIndexes().Single();
             Assert.NotSame(index1, index2);
-            Assert.NotEqual(index1.GetName(), index2.GetName());
+            Assert.Equal(index1.GetName(), index2.GetName());
         }
 
         [ConditionalFact]
@@ -753,7 +753,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             var index1 = fk1.DeclaringEntityType.GetDeclaredIndexes().Single();
             var index2 = fk2.DeclaringEntityType.GetDeclaredIndexes().Single();
             Assert.NotSame(index1, index2);
-            Assert.NotEqual(index1.GetName(), index2.GetName());
+            Assert.Equal(index1.GetName(), index2.GetName());
         }
 
         [ConditionalFact]

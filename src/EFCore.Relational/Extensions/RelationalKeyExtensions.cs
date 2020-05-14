@@ -1,7 +1,6 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -83,8 +82,9 @@ namespace Microsoft.EntityFrameworkCore
             if (key.IsPrimaryKey())
             {
                 var rootKey = key;
-                // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-                for (var i = 0; i < 128; i++)
+                // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+                // Using a hashset is detrimental to the perf when there are no cycles
+                for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
                 {
                     var linkingFk = rootKey.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
                         .FirstOrDefault();
@@ -106,6 +106,30 @@ namespace Microsoft.EntityFrameworkCore
             }
             else
             {
+                var propertyNames = key.Properties.Select(p => p.GetColumnName(tableName, schema)).ToList();
+                var rootKey = key;
+
+                // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+                // Using a hashset is detrimental to the perf when there are no cycles
+                for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
+                {
+                    var linkedKey = rootKey.DeclaringEntityType
+                        .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                        .SelectMany(fk => fk.PrincipalEntityType.GetKeys())
+                        .FirstOrDefault(k => k.Properties.Select(p => p.GetColumnName(tableName, schema)).SequenceEqual(propertyNames));
+                    if (linkedKey == null)
+                    {
+                        break;
+                    }
+
+                    rootKey = linkedKey;
+                }
+
+                if (rootKey != key)
+                {
+                    return rootKey.GetName(tableName, schema);
+                }
+
                 name = new StringBuilder()
                     .Append("AK_")
                     .Append(tableName)
@@ -185,8 +209,9 @@ namespace Microsoft.EntityFrameworkCore
             var keyName = key.GetName(tableName, schema);
             var rootKey = key;
 
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedKey = rootKey.DeclaringEntityType
                     .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)

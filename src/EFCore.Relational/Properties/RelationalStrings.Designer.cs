@@ -229,20 +229,20 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 firstEntityType, firstKeyValue, firstState, secondEntityType, secondKeyValue, secondState);
 
         /// <summary>
-        ///     An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different property values for the properties {firstProperties} and {secondProperties} mapped to {columns}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.
+        ///     An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different property values for the properties {firstProperty} and {secondProperty} mapped to {column}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.
         /// </summary>
-        public static string ConflictingRowValues([CanBeNull] object firstEntityType, [CanBeNull] object secondEntityType, [CanBeNull] object firstProperties, [CanBeNull] object secondProperties, [CanBeNull] object columns)
+        public static string ConflictingRowValues([CanBeNull] object firstEntityType, [CanBeNull] object secondEntityType, [CanBeNull] object firstProperty, [CanBeNull] object secondProperty, [CanBeNull] object column)
             => string.Format(
-                GetString("ConflictingRowValues", nameof(firstEntityType), nameof(secondEntityType), nameof(firstProperties), nameof(secondProperties), nameof(columns)),
-                firstEntityType, secondEntityType, firstProperties, secondProperties, columns);
+                GetString("ConflictingRowValues", nameof(firstEntityType), nameof(secondEntityType), nameof(firstProperty), nameof(secondProperty), nameof(column)),
+                firstEntityType, secondEntityType, firstProperty, secondProperty, column);
 
         /// <summary>
-        ///     The instance of entity type '{firstEntityType}' and the instance of entity type '{secondEntityType}' are mapped to the same row with the key value '{keyValue}', but have different property values '{firstConflictingValues}' and '{secondConflictingValues}' for the column {columns}.
+        ///     The instance of entity type '{firstEntityType}' and the instance of entity type '{secondEntityType}' are mapped to the same row with the key value '{keyValue}', but have different property values '{firstConflictingValue}' and '{secondConflictingValue}' for the column {column}.
         /// </summary>
-        public static string ConflictingRowValuesSensitive([CanBeNull] object firstEntityType, [CanBeNull] object secondEntityType, [CanBeNull] object keyValue, [CanBeNull] object firstConflictingValues, [CanBeNull] object secondConflictingValues, [CanBeNull] object columns)
+        public static string ConflictingRowValuesSensitive([CanBeNull] object firstEntityType, [CanBeNull] object secondEntityType, [CanBeNull] object keyValue, [CanBeNull] object firstConflictingValue, [CanBeNull] object secondConflictingValue, [CanBeNull] object column)
             => string.Format(
-                GetString("ConflictingRowValuesSensitive", nameof(firstEntityType), nameof(secondEntityType), nameof(keyValue), nameof(firstConflictingValues), nameof(secondConflictingValues), nameof(columns)),
-                firstEntityType, secondEntityType, keyValue, firstConflictingValues, secondConflictingValues, columns);
+                GetString("ConflictingRowValuesSensitive", nameof(firstEntityType), nameof(secondEntityType), nameof(keyValue), nameof(firstConflictingValue), nameof(secondConflictingValue), nameof(column)),
+                firstEntityType, secondEntityType, keyValue, firstConflictingValue, secondConflictingValue, column);
 
         /// <summary>
         ///     An instance of entity type '{firstEntityType}' and an instance of entity type '{secondEntityType}' are mapped to the same row, but have different original property values for the properties {firstProperties} and {secondProperties} mapped to {columns}. Consider using 'DbContextOptionsBuilder.EnableSensitiveDataLogging' to see the conflicting values.
@@ -802,7 +802,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 type, column);
 
         /// <summary>
-        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types that don't have a discriminator must be mapped to different tables.
+        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different tables.
         /// </summary>
         public static string NonTPHTableClash([CanBeNull] object entityType, [CanBeNull] object otherEntityType, [CanBeNull] object table)
             => string.Format(
@@ -810,7 +810,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, otherEntityType, table);
 
         /// <summary>
-        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types that don't have a discriminator must be mapped to different views.
+        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different views.
         /// </summary>
         public static string NonTPHViewClash([CanBeNull] object entityType, [CanBeNull] object otherEntityType, [CanBeNull] object view)
             => string.Format(
@@ -818,7 +818,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, otherEntityType, view);
 
         /// <summary>
-        ///     The property '{property}' has specific configuration for the table or view '{table}', however that's the main table or view that '{entityType}' is mapped to. Remove the specific configuration or change it to non-specific configuration.
+        ///     The property '{property}' has configuration specific to the table or view '{table}', however that's the main table or view to which '{entityType}' is mapped. Remove the specific configuration or use the configuration that does not specify a table or view.
         /// </summary>
         public static string TableOverrideDeclaredTable([CanBeNull] object property, [CanBeNull] object table, [CanBeNull] object entityType)
             => string.Format(

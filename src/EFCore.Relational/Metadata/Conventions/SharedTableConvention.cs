@@ -86,6 +86,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 entityTypes.Add(entityType);
             }
 
+            // Some entity types might end up mapped to the same table after the table name is truncated
+            // So we need to try to separate them and map themp to a different table as was intended initially
             Multigraph<IConventionEntityType, object> entityTypeGraph = null;
             List<(ISet<IConventionEntityType> Component, string TableName, string Schema, ISet<IConventionEntityType> OldComponent)> componentsToUniquify = null;
             foreach (var table in tables)
@@ -200,17 +202,17 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 }
 
                 var identifyingMemberInfo = property.PropertyInfo ?? (MemberInfo)property.FieldInfo;
-                if (identifyingMemberInfo != null
+                if ((identifyingMemberInfo != null
                     && identifyingMemberInfo.IsSameAs(otherProperty.PropertyInfo ?? (MemberInfo)otherProperty.FieldInfo))
+                    || (property.IsPrimaryKey() && otherProperty.IsPrimaryKey())
+                    || (property.IsConcurrencyToken && otherProperty.IsConcurrencyToken))
                 {
                     continue;
                 }
 
-                var usePrefix = property.DeclaringEntityType != otherProperty.DeclaringEntityType
-                    || property.IsPrimaryKey()
-                    || otherProperty.IsPrimaryKey();
-                if (!property.IsPrimaryKey()
-                    && !property.IsConcurrencyToken)
+                var usePrefix = property.DeclaringEntityType != otherProperty.DeclaringEntityType;
+                if (!usePrefix
+                    || property.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table).Any())
                 {
                     var newColumnName = TryUniquify(property, columnName, properties, usePrefix, maxLength);
                     if (newColumnName != null)
@@ -220,14 +222,14 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     }
                 }
 
-                if (!otherProperty.IsPrimaryKey()
-                    && !otherProperty.IsConcurrencyToken)
+                if (!usePrefix
+                    || otherProperty.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table).Any())
                 {
-                    var newColumnName = TryUniquify(otherProperty, columnName, properties, usePrefix, maxLength);
-                    if (newColumnName != null)
+                    var newOtherColumnName = TryUniquify(otherProperty, columnName, properties, usePrefix, maxLength);
+                    if (newOtherColumnName != null)
                     {
                         properties[columnName] = property;
-                        properties[newColumnName] = otherProperty;
+                        properties[newOtherColumnName] = otherProperty;
                     }
                 }
             }
@@ -257,7 +259,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
             return null;
         }
 
-        private static void TryUniquifyKeyNames(
+        private void TryUniquifyKeyNames(
             IConventionEntityType entityType,
             Dictionary<string, IConventionKey> keys,
             string tableName,
@@ -273,27 +275,43 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     continue;
                 }
 
-                if (!key.IsPrimaryKey())
+                if ((key.IsPrimaryKey()
+                        && otherKey.IsPrimaryKey())
+                    || AreCompatible(key, otherKey, tableName, schema))
                 {
-                    var newKeyName = TryUniquify(key, keyName, keys, maxLength);
-                    if (newKeyName != null)
-                    {
-                        keys[newKeyName] = key;
-                        continue;
-                    }
+                    continue;
                 }
 
-                if (!otherKey.IsPrimaryKey())
+                var newKeyName = TryUniquify(key, keyName, keys, maxLength);
+                if (newKeyName != null)
                 {
-                    var newKeyName = TryUniquify(otherKey, keyName, keys, maxLength);
-                    if (newKeyName != null)
-                    {
-                        keys[keyName] = key;
-                        keys[newKeyName] = otherKey;
-                    }
+                    keys[newKeyName] = key;
+                    continue;
+                }
+
+                var newOtherKeyName = TryUniquify(otherKey, keyName, keys, maxLength);
+                if (newOtherKeyName != null)
+                {
+                    keys[keyName] = key;
+                    keys[newOtherKeyName] = otherKey;
                 }
             }
         }
+
+        /// <summary>
+        ///     Gets a value indicating whether two key mapped to the same constraint are compatible.
+        /// </summary>
+        /// <param name="key"> A key. </param>
+        /// <param name="duplicateKey"> Another key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <returns> <see langword="true"/> if compatible </returns>
+        protected virtual bool AreCompatible(
+            [NotNull] IKey key,
+            [NotNull] IKey duplicateKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema)
+            => key.AreCompatible(duplicateKey, tableName, schema, shouldThrow: false);
 
         private static string TryUniquify<T>(
             IConventionKey key, string keyName, Dictionary<string, T> keys, int maxLength)
@@ -308,7 +326,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
             return null;
         }
 
-        private static void TryUniquifyIndexNames(
+        private void TryUniquifyIndexNames(
             IConventionEntityType entityType,
             Dictionary<string, IConventionIndex> indexes,
             string tableName,
@@ -324,30 +342,14 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     continue;
                 }
 
-                if (index.Builder.CanSetName(null))
+                if (AreCompatible(index, otherIndex, tableName, schema))
                 {
-                    if (index.GetConfigurationSource() == ConfigurationSource.Convention
-                        && otherIndex.GetConfigurationSource() == ConfigurationSource.Convention
-                        && otherIndex.Builder.CanSetName(null))
-                    {
-                        var associatedForeignKey = index.DeclaringEntityType.FindDeclaredForeignKeys(index.Properties).FirstOrDefault();
-                        var otherAssociatedForeignKey =
-                            otherIndex.DeclaringEntityType.FindDeclaredForeignKeys(index.Properties).FirstOrDefault();
-                        if (associatedForeignKey != null
-                            && otherAssociatedForeignKey != null
-                            && associatedForeignKey.GetConstraintName(tableName, schema,
-                                associatedForeignKey.PrincipalEntityType.GetTableName(),
-                                associatedForeignKey.PrincipalEntityType.GetSchema())
-                                == otherAssociatedForeignKey.GetConstraintName(tableName, schema,
-                                    otherAssociatedForeignKey.PrincipalEntityType.GetTableName(),
-                                    otherAssociatedForeignKey.PrincipalEntityType.GetSchema())
-                            && index.AreCompatible(otherIndex, tableName, schema, shouldThrow: false))
-                        {
-                            continue;
-                        }
-                    }
+                    continue;
+                }
 
-                    var newIndexName = TryUniquify(index, indexName, indexes, maxLength);
+                var newIndexName = TryUniquify(index, indexName, indexes, maxLength);
+                if (newIndexName != null)
+                {
                     indexes[newIndexName] = index;
                     continue;
                 }
@@ -360,6 +362,21 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 }
             }
         }
+
+        /// <summary>
+        ///     Gets a value indicating whether two indexes mapped to the same table index are compatible.
+        /// </summary>
+        /// <param name="index"> An index. </param>
+        /// <param name="duplicateIndex"> Another index. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <returns> <see langword="true"/> if compatible </returns>
+        protected virtual bool AreCompatible(
+            [NotNull] IIndex index,
+            [NotNull] IIndex duplicateIndex,
+            [NotNull] string tableName,
+            [CanBeNull] string schema)
+            => index.AreCompatible(duplicateIndex, tableName, schema, shouldThrow: false);
 
         private static string TryUniquify<T>(
             IConventionIndex index, string indexName, Dictionary<string, T> indexes, int maxLength)
@@ -374,7 +391,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
             return null;
         }
 
-        private static void TryUniquifyForeignKeyNames(
+        private void TryUniquifyForeignKeyNames(
             IConventionEntityType entityType,
             Dictionary<string, IConventionForeignKey> foreignKeys,
             string tableName,
@@ -397,21 +414,14 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                     continue;
                 }
 
-                if (foreignKey.Builder.CanSetConstraintName(null))
+                if (AreCompatible(foreignKey, otherForeignKey, tableName, schema))
                 {
-                    if (otherForeignKey.Builder.CanSetConstraintName(null)
-                        && (foreignKey.PrincipalToDependent != null
-                            || foreignKey.DependentToPrincipal != null)
-                        && (foreignKey.PrincipalToDependent?.GetIdentifyingMemberInfo()).IsSameAs(
-                            otherForeignKey.PrincipalToDependent?.GetIdentifyingMemberInfo())
-                        && (foreignKey.DependentToPrincipal?.GetIdentifyingMemberInfo()).IsSameAs(
-                            otherForeignKey.DependentToPrincipal?.GetIdentifyingMemberInfo())
-                        && foreignKey.AreCompatible(otherForeignKey, tableName, schema, shouldThrow: false))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    var newForeignKeyName = TryUniquify(foreignKey, foreignKeyName, foreignKeys, maxLength);
+                var newForeignKeyName = TryUniquify(foreignKey, foreignKeyName, foreignKeys, maxLength);
+                if (newForeignKeyName != null)
+                {
                     foreignKeys[newForeignKeyName] = foreignKey;
                     continue;
                 }
@@ -424,6 +434,21 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 }
             }
         }
+
+        /// <summary>
+        ///     Gets a value indicating whether two foreign keys mapped to the same foreign key constraint are compatible.
+        /// </summary>
+        /// <param name="foreignKey"> A foreign key. </param>
+        /// <param name="duplicateForeignKey"> Another foreign key. </param>
+        /// <param name="tableName"> The table name. </param>
+        /// <param name="schema"> The schema. </param>
+        /// <returns> <see langword="true"/> if compatible </returns>
+        protected virtual bool AreCompatible(
+            [NotNull] IForeignKey foreignKey,
+            [NotNull] IForeignKey duplicateForeignKey,
+            [NotNull] string tableName,
+            [CanBeNull] string schema)
+            => foreignKey.AreCompatible(duplicateForeignKey, tableName, schema, shouldThrow: false);
 
         private static string TryUniquify<T>(
             IConventionForeignKey foreignKey, string foreignKeyName, Dictionary<string, T> foreignKeys, int maxLength)

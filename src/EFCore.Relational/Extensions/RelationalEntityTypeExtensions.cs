@@ -120,14 +120,14 @@ namespace Microsoft.EntityFrameworkCore
             }
 
             return entityType.BaseType != null
-                    ? entityType.GetRootType().GetSchema()
-                    : GetDefaultSchema(entityType);
+                ? entityType.GetRootType().GetSchema()
+                : GetDefaultSchema(entityType);
         }
 
         /// <summary>
         ///     Returns the default database schema that would be used for this entity type.
         /// </summary>
-        /// <param name="entityType"> The entity type to get The schema for. </param>
+        /// <param name="entityType"> The entity type to get the schema for. </param>
         /// <returns> The default database schema to which the entity type would be mapped. </returns>
         public static string GetDefaultSchema([NotNull] this IEntityType entityType)
         {

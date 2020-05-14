@@ -1363,8 +1363,9 @@ namespace Microsoft.EntityFrameworkCore
 
             var rootProperty = property;
 
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var allProperties = rootProperty.DeclaringEntityType
                     .FindIntrarowForeignKeys(tableName, schema, storeObjectType)
@@ -1396,8 +1397,9 @@ namespace Microsoft.EntityFrameworkCore
 
             var principalProperty = property;
 
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkingRelationship = principalProperty.DeclaringEntityType
                     .FindIntrarowForeignKeys(name, schema, storeObjectType).FirstOrDefault();
@@ -1424,8 +1426,9 @@ namespace Microsoft.EntityFrameworkCore
             }
 
             var principalProperty = property;
-            // Limit traversal to 128 FKs to avoid getting stuck in a cycle (validation will throw for these later)
-            for (var i = 0; i < 128; i++)
+            // Limit traversal to avoid getting stuck in a cycle (validation will throw for these later)
+            // Using a hashset is detrimental to the perf when there are no cycles
+            for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkingRelationship = principalProperty.DeclaringEntityType
                     .FindIntrarowForeignKeys(name, schema, storeObjectType).FirstOrDefault();

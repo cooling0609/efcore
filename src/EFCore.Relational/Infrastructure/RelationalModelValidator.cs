@@ -669,9 +669,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             [NotNull] string tableName,
             [CanBeNull] string schema,
             [NotNull] IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
-        {
-            foreignKey.AreCompatible(duplicateForeignKey, tableName, schema, shouldThrow: true);
-        }
+            => foreignKey.AreCompatible(duplicateForeignKey, tableName, schema, shouldThrow: true);
 
         /// <summary>
         ///     Validates the compatibility of indexes in a given shared table.
@@ -765,20 +763,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             [CanBeNull] string schema,
             [NotNull] IDiagnosticsLogger<DbLoggerCategory.Model.Validation> logger)
         {
-            if (!key.Properties.Select(p => p.GetColumnName(tableName, schema))
-                    .SequenceEqual(duplicateKey.Properties.Select(p => p.GetColumnName(tableName, schema))))
-            {
-                throw new InvalidOperationException(
-                    RelationalStrings.DuplicateKeyColumnMismatch(
-                        key.Properties.Format(),
-                        key.DeclaringEntityType.DisplayName(),
-                        duplicateKey.Properties.Format(),
-                        duplicateKey.DeclaringEntityType.DisplayName(),
-                        Format(tableName, schema),
-                        keyName,
-                        key.Properties.FormatColumns(tableName, schema),
-                        duplicateKey.Properties.FormatColumns(tableName, schema)));
-            }
+            key.AreCompatible(duplicateKey, tableName, schema, shouldThrow: true);
         }
 
         /// <summary>
@@ -811,8 +796,6 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                     ValidateTPTMapping(rootEntityType, table: true);
                 }
             }
-
-            // TODO: Validate shared views
         }
 
         private void ValidateTPTMapping(IEntityType rootEntityType, bool table)

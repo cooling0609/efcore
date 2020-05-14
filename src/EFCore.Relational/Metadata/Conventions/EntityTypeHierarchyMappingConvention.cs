@@ -9,16 +9,16 @@ using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
 {
     /// <summary>
-    ///     A convention that configures the entity types based on how they should be mapped to the database.
+    ///     A convention that removes discriminators from non-TPH entity types and unmaps the inherited properties for TPT entity types.
     /// </summary>
-    public class EntityTypeMappingConvention : IModelFinalizingConvention
+    public class EntityTypeHierarchyMappingConvention : IModelFinalizingConvention
     {
         /// <summary>
-        ///     Creates a new instance of <see cref="EntityTypeMappingConvention" />.
+        ///     Creates a new instance of <see cref="EntityTypeHierarchyMappingConvention" />.
         /// </summary>
         /// <param name="dependencies"> Parameter object containing dependencies for this convention. </param>
         /// <param name="relationalDependencies">  Parameter object containing relational dependencies for this convention. </param>
-        public EntityTypeMappingConvention(
+        public EntityTypeHierarchyMappingConvention(
             [NotNull] ProviderConventionSetBuilderDependencies dependencies,
             [NotNull] RelationalConventionSetBuilderDependencies relationalDependencies)
         {

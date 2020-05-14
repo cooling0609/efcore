@@ -878,6 +878,11 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                 (s, t, c) => s.PropertyMappings.Any(sm =>
                     t.PropertyMappings.Any(tm =>
                         string.Equals(sm.Property.Name, tm.Property.Name, StringComparison.OrdinalIgnoreCase))),
+                (s, t, c) => ColumnStructureEquals(s, t)
+                    && s.PropertyMappings.Any(sm =>
+                        t.PropertyMappings.Any(tm =>
+                            string.Equals(sm.Property.Name, tm.Property.Name, StringComparison.OrdinalIgnoreCase)
+                                && EntityTypePathEquals(sm.Property.DeclaringEntityType, tm.Property.DeclaringEntityType, c))),
                 (s, t, c) => ColumnStructureEquals(s, t));
 
         private bool ColumnStructureEquals(IColumn source, IColumn target)

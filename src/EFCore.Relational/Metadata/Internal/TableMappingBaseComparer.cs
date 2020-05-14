@@ -16,11 +16,11 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
     // Sealed for perf
     public sealed class TableMappingBaseComparer : IEqualityComparer<ITableMappingBase>, IComparer<ITableMappingBase>
     {
-        private readonly bool _entityType;
+        private readonly bool _isForEntityType;
 
-        private TableMappingBaseComparer(bool entityType)
+        private TableMappingBaseComparer(bool forEntityType)
         {
-            _entityType = entityType;
+            _isForEntityType = forEntityType;
         }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public static readonly TableMappingBaseComparer EntityTypeInstance = new TableMappingBaseComparer(entityType: true);
+        public static readonly TableMappingBaseComparer EntityTypeInstance = new TableMappingBaseComparer(forEntityType: true);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -37,7 +37,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         ///     any release. You should only use it directly in your code with extreme caution and knowing that
         ///     doing so can result in application failures when updating to a new Entity Framework Core release.
         /// </summary>
-        public static readonly TableMappingBaseComparer TableInstance = new TableMappingBaseComparer(entityType: false);
+        public static readonly TableMappingBaseComparer TableInstance = new TableMappingBaseComparer(forEntityType: false);
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -47,7 +47,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Internal
         /// </summary>
         public int Compare(ITableMappingBase x, ITableMappingBase y)
         {
-            var result = _entityType
+            var result = _isForEntityType
                 ? x.IsMainTableMapping.CompareTo(y.IsMainTableMapping)
                 : x.IsMainEntityTypeMapping.CompareTo(y.IsMainEntityTypeMapping);
             if (result != 0)

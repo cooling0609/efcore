@@ -335,18 +335,7 @@ namespace Microsoft.EntityFrameworkCore.SqlServer.Internal
         {
             base.ValidateCompatible(key, duplicateKey, keyName, tableName, schema, logger);
 
-            if (key.IsClustered(tableName, schema)
-                != duplicateKey.IsClustered(tableName, schema))
-            {
-                throw new InvalidOperationException(
-                    SqlServerStrings.DuplicateKeyMismatchedClustering(
-                        key.Properties.Format(),
-                        key.DeclaringEntityType.DisplayName(),
-                        duplicateKey.Properties.Format(),
-                        duplicateKey.DeclaringEntityType.DisplayName(),
-                        tableName,
-                        keyName));
-            }
+            key.AreCompatibleForSqlServer(duplicateKey, tableName, schema, shouldThrow: true);
         }
 
         /// <inheritdoc />
