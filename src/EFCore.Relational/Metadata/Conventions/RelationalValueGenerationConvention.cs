@@ -103,8 +103,8 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 return;
             }
 
-            var oldLink = entityTypeBuilder.Metadata.FindTableIntrarowForeignKeys(oldTable, oldSchema);
-            var newLink = entityTypeBuilder.Metadata.FindTableIntrarowForeignKeys(newTable, newSchema);
+            var oldLink = entityTypeBuilder.Metadata.FindTableRowInternalForeignKeys(oldTable, oldSchema);
+            var newLink = entityTypeBuilder.Metadata.FindTableRowInternalForeignKeys(newTable, newSchema);
 
             if (!oldLink.Any()
                 && !newLink.Any())

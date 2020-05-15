@@ -587,7 +587,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 property, serviceType, entityType, duplicateName, duplicateEntityType);
 
         /// <summary>
-        ///     The navigation property '{navigation}' cannot be added to the entity type '{entityType}' because there is no corresponding CLR property on the underlying type and navigations properties cannot be added to shadow state.
+        ///     The navigation property '{navigation}' cannot be added to the entity type '{entityType}' because there is no corresponding CLR property on the underlying type and navigations properties cannot be added in shadow state.
         /// </summary>
         public static string NoClrNavigation([CanBeNull] object navigation, [CanBeNull] object entityType)
             => string.Format(
@@ -2211,7 +2211,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, discriminator);
 
         /// <summary>
-        ///     'InterceptionResult.Result' was called when 'InterceptionResult.HasResult' is false.
+        ///     
         /// </summary>
         public static string NoInterceptionResult
             => GetString("NoInterceptionResult");

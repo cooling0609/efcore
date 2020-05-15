@@ -941,11 +941,12 @@ namespace Microsoft.EntityFrameworkCore
         /// <summary>
         ///     <para>
         ///         Checks whether the column mapped to the given <see cref="IProperty" /> will be nullable
-        ///         or not when created in the database.
+        ///         when created in the database.
         ///     </para>
         ///     <para>
-        ///         This can depend not just on the property itself, but also how it is mapped. For example,
-        ///         non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         This depends on the property itself and also how it is mapped. For example,
+        ///         derived non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         As well as properties on optional types sharing the same table.
         ///     </para>
         /// </summary>
         /// <param name="property"> The <see cref="IProperty" />. </param>
@@ -954,17 +955,18 @@ namespace Microsoft.EntityFrameworkCore
             => !property.IsPrimaryKey()
                 && (property.IsNullable
                     || (property.DeclaringEntityType.BaseType != null && property.DeclaringEntityType.GetDiscriminatorProperty() != null)
-                    || property.DeclaringEntityType.FindTableIntrarowForeignKeys(
+                    || property.DeclaringEntityType.FindTableRowInternalForeignKeys(
                         property.DeclaringEntityType.GetTableName(), property.DeclaringEntityType.GetSchema()).Any());
 
         /// <summary>
         ///     <para>
         ///         Checks whether the column mapped to the given <see cref="IProperty" /> will be nullable
-        ///         or not when created in the database.
+        ///         when created in the database.
         ///     </para>
         ///     <para>
-        ///         This can depend not just on the property itself, but also how it is mapped. For example,
-        ///         non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         This depends on the property itself and also how it is mapped. For example,
+        ///         derived non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         As well as properties on optional types sharing the same table.
         ///     </para>
         /// </summary>
         /// <param name="property"> The <see cref="IProperty" />. </param>
@@ -989,17 +991,18 @@ namespace Microsoft.EntityFrameworkCore
 
             return property.IsNullable
                     || (property.DeclaringEntityType.BaseType != null && property.DeclaringEntityType.GetDiscriminatorProperty() != null)
-                    || property.DeclaringEntityType.FindTableIntrarowForeignKeys(tableName, schema).Any();
+                    || property.DeclaringEntityType.FindTableRowInternalForeignKeys(tableName, schema).Any();
         }
 
         /// <summary>
         ///     <para>
         ///         Checks whether or not the column mapped to the given <see cref="IProperty" /> will be nullable
-        ///         or not when created in the database.
+        ///         when created in the database.
         ///     </para>
         ///     <para>
-        ///         This can depend not just on the property itself, but also how it is mapped. For example,
-        ///         non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         This depends on the property itself and also how it is mapped. For example,
+        ///         derived non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         As well as properties on optional types sharing the same table.
         ///     </para>
         /// </summary>
         /// <param name="property"> The <see cref="IProperty" />. </param>
@@ -1008,17 +1011,18 @@ namespace Microsoft.EntityFrameworkCore
             => !property.IsPrimaryKey()
                 && (property.IsNullable
                     || (property.DeclaringEntityType.BaseType != null && property.DeclaringEntityType.GetDiscriminatorProperty() != null)
-                    || property.DeclaringEntityType.FindViewIntrarowForeignKeys(
+                    || property.DeclaringEntityType.FindViewRowInternalForeignKeys(
                         property.DeclaringEntityType.GetViewName(), property.DeclaringEntityType.GetViewSchema()).Any());
 
         /// <summary>
         ///     <para>
         ///         Checks whether or not the column mapped to the given <see cref="IProperty" /> will be nullable
-        ///         or not when created in the database.
+        ///         when created in the database.
         ///     </para>
         ///     <para>
-        ///         This can depend not just on the property itself, but also how it is mapped. For example,
-        ///         non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         This depends on the property itself and also how it is mapped. For example,
+        ///         derived non-nullable properties in a TPH type hierarchy will be mapped to nullable columns.
+        ///         As well as properties on optional types sharing the same table.
         ///     </para>
         /// </summary>
         /// <param name="property"> The <see cref="IProperty" />. </param>
@@ -1043,7 +1047,7 @@ namespace Microsoft.EntityFrameworkCore
 
             return property.IsNullable
                     || (property.DeclaringEntityType.BaseType != null && property.DeclaringEntityType.GetDiscriminatorProperty() != null)
-                    || property.DeclaringEntityType.FindViewIntrarowForeignKeys(viewName, schema).Any();
+                    || property.DeclaringEntityType.FindViewRowInternalForeignKeys(viewName, schema).Any();
         }
 
         /// <summary>
@@ -1368,7 +1372,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var allProperties = rootProperty.DeclaringEntityType
-                    .FindIntrarowForeignKeys(tableName, schema, storeObjectType)
+                    .FindRowInternalForeignKeys(tableName, schema, storeObjectType)
                     .SelectMany(fk => fk.PrincipalEntityType.GetProperties());
                 var linkedProperty = storeObjectType == StoreObjectType.Table
                         ? allProperties.FirstOrDefault(p => p.GetColumnName(tableName, schema) == column)
@@ -1402,7 +1406,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkingRelationship = principalProperty.DeclaringEntityType
-                    .FindIntrarowForeignKeys(name, schema, storeObjectType).FirstOrDefault();
+                    .FindRowInternalForeignKeys(name, schema, storeObjectType).FirstOrDefault();
                 if (linkingRelationship == null)
                 {
                     break;
@@ -1431,7 +1435,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkingRelationship = principalProperty.DeclaringEntityType
-                    .FindIntrarowForeignKeys(name, schema, storeObjectType).FirstOrDefault();
+                    .FindRowInternalForeignKeys(name, schema, storeObjectType).FirstOrDefault();
                 if (linkingRelationship == null)
                 {
                     break;

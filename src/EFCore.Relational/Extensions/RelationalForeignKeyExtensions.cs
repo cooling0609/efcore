@@ -98,7 +98,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedForeignKey = rootForeignKey.DeclaringEntityType
-                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .FindTableRowInternalForeignKeys(tableName, schema)
                     .SelectMany(fk => fk.PrincipalEntityType.GetForeignKeys())
                     .FirstOrDefault(k => principalTableName == k.PrincipalEntityType.GetTableName()
                         && principalSchema == k.PrincipalEntityType.GetSchema()
@@ -210,7 +210,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedKey = rootForeignKey.DeclaringEntityType
-                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .FindTableRowInternalForeignKeys(tableName, schema)
                     .SelectMany(fk => fk.PrincipalEntityType.GetForeignKeys())
                     .FirstOrDefault(k => k.GetConstraintName(tableName, schema,
                         k.PrincipalEntityType.GetTableName(), k.PrincipalEntityType.GetSchema())

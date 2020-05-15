@@ -802,7 +802,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 type, column);
 
         /// <summary>
-        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different tables.
+        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All the entity types in a hierarchy that don't have a discriminator must be mapped to different tables. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.
         /// </summary>
         public static string NonTPHTableClash([CanBeNull] object entityType, [CanBeNull] object otherEntityType, [CanBeNull] object table)
             => string.Format(
@@ -810,7 +810,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, otherEntityType, table);
 
         /// <summary>
-        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different views.
+        ///     Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All the entity types in a hierarchy that don't have a discriminator must be mapped to different views. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.
         /// </summary>
         public static string NonTPHViewClash([CanBeNull] object entityType, [CanBeNull] object otherEntityType, [CanBeNull] object view)
             => string.Format(
@@ -834,7 +834,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 propertySpecification, table);
 
         /// <summary>
-        ///     '{entityType}' is mapped to the table '{table}' while '{otherEntityType}' is mapped to the table '{otherTable}'. Map all entity types in the hierarchy to the same table or remove the discriminator.
+        ///     '{entityType}' is mapped to the table '{table}' while '{otherEntityType}' is mapped to the table '{otherTable}'. Map all the entity types in the hierarchy to the same table or remove the discriminator and map all of them to different tables. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.
         /// </summary>
         public static string TPHTableMismatch([CanBeNull] object entityType, [CanBeNull] object table, [CanBeNull] object otherEntityType, [CanBeNull] object otherTable)
             => string.Format(
@@ -842,7 +842,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, table, otherEntityType, otherTable);
 
         /// <summary>
-        ///     '{entityType}' is mapped to the view '{view}' while '{otherEntityType}' is mapped to the view '{otherView}'. Map all entity types in the hierarchy to the same view or remove the discriminator.
+        ///     '{entityType}' is mapped to the view '{view}' while '{otherEntityType}' is mapped to the view '{otherView}'. Map all the entity types in the hierarchy to the same view or remove the discriminator and map all of them to different views. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.
         /// </summary>
         public static string TPHViewMismatch([CanBeNull] object entityType, [CanBeNull] object view, [CanBeNull] object otherEntityType, [CanBeNull] object otherView)
             => string.Format(

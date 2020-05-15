@@ -34,7 +34,7 @@ namespace Microsoft.EntityFrameworkCore
                 property.DeclaringEntityType.GetTableName(), property.DeclaringEntityType.GetSchema());
             return sharedTableRootProperty != null
                 ? sharedTableRootProperty.GetHiLoSequenceSchema()
-                : (string)property[SqlServerAnnotationNames.HiLoSequenceName];
+                : null;
         }
 
         /// <summary>
@@ -152,7 +152,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="property"> The property. </param>
         /// <returns> The identity seed. </returns>
         public static int? GetIdentitySeed([NotNull] this IProperty property)
-            => property.GetIdentitySeed(property.DeclaringEntityType.GetTableName(), property.DeclaringEntityType.GetSchema());
+            => (int?)property[SqlServerAnnotationNames.IdentitySeed];
 
         /// <summary>
         ///     Returns the identity seed.

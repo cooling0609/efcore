@@ -40,7 +40,7 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         public virtual void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
         {
             var maxLength = modelBuilder.Metadata.GetMaxIdentifierLength();
-            var tables = new Dictionary<(string TableName, string Schema), ISet<IConventionEntityType>>();
+            var tables = new Dictionary<(string TableName, string Schema), List<IConventionEntityType>>();
 
             TryUniquifyTableNames(modelBuilder.Metadata, tables, maxLength);
 
@@ -66,122 +66,85 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
         }
 
         private static void TryUniquifyTableNames(
-            IConventionModel model, Dictionary<(string TableName, string Schema), ISet<IConventionEntityType>> tables, int maxLength)
+            IConventionModel model, Dictionary<(string Name, string Schema), List<IConventionEntityType>> tables, int maxLength)
         {
+            Dictionary<(string Name, string Schema), Dictionary<(string Name, string Schema), List<IConventionEntityType>>> clashingTables
+                = null;
             foreach (var entityType in model.GetEntityTypes())
             {
-                var tableName = (TableName: entityType.GetTableName(), Schema: entityType.GetSchema());
-                if (tableName.TableName == null
+                var table = (Name: entityType.GetTableName(), Schema: entityType.GetSchema());
+                if (table.Name == null
                     || entityType.FindPrimaryKey() == null)
                 {
                     continue;
                 }
 
-                if (!tables.TryGetValue(tableName, out var entityTypes))
+                if (!tables.TryGetValue(table, out var entityTypes))
                 {
-                    entityTypes = new HashSet<IConventionEntityType>();
-                    tables[tableName] = entityTypes;
+                    entityTypes = new List<IConventionEntityType>();
+                    tables[table] = entityTypes;
                 }
 
-                entityTypes.Add(entityType);
-            }
-
-            // Some entity types might end up mapped to the same table after the table name is truncated
-            // So we need to try to separate them and map themp to a different table as was intended initially
-            Multigraph<IConventionEntityType, object> entityTypeGraph = null;
-            List<(ISet<IConventionEntityType> Component, string TableName, string Schema, ISet<IConventionEntityType> OldComponent)> componentsToUniquify = null;
-            foreach (var table in tables)
-            {
-                var (tableName, schema) = table.Key;
-                var entityTypes = table.Value;
-                if (entityTypes.Count == 1
-                    || tableName.Length < maxLength)
+                if (entityTypes.Count > 0
+                    && !entityType.FindTableRowInternalForeignKeys(table.Name, table.Schema).Any())
                 {
-                    continue;
-                }
-
-                if (entityTypeGraph == null)
-                {
-                    entityTypeGraph = new Multigraph<IConventionEntityType, object>();
+                    entityTypes.Insert(0, entityType);
                 }
                 else
                 {
-                    entityTypeGraph.Clear();
+                    entityTypes.Add(entityType);
                 }
 
-                foreach (var entityType in entityTypes)
+                if (table.Name.Length == maxLength)
                 {
-                    entityTypeGraph.AddVertex(entityType);
-                }
-
-                foreach (var entityType in entityTypes)
-                {
-                    var baseEntityType = entityType.BaseType;
-                    if (baseEntityType != null
-                        && entityTypes.Contains(baseEntityType))
+                    var originalName = entityType.GetDefaultTableName(truncate: false);
+                    if (originalName.Length == maxLength)
                     {
-                        entityTypeGraph.AddEdge(entityType, baseEntityType, null);
-                    }
-
-                    foreach (var linkingFk in entityType.FindTableIntrarowForeignKeys(tableName, schema))
-                    {
-                        entityTypeGraph.AddEdge(entityType, linkingFk.PrincipalEntityType, null);
-                    }
-                }
-
-                var components = entityTypeGraph.GetWeaklyConnectedComponents();
-                var anyComponentSkipped = false;
-                for (var i = 1; i < components.Count; i++)
-                {
-                    var currentComponent = components[i];
-                    if (currentComponent.Any(e => e[RelationalAnnotationNames.TableName] != null))
-                    {
-                        anyComponentSkipped = true;
                         continue;
                     }
 
-                    if (componentsToUniquify == null)
+                    if (clashingTables == null)
                     {
-                        componentsToUniquify = new List<(ISet<IConventionEntityType> Component, string TableName, string Schema, ISet<IConventionEntityType> OldComponent)>();
+                        clashingTables = new Dictionary<(string Name, string Schema), Dictionary<(string Name, string Schema), List<IConventionEntityType>>>();
                     }
-                    componentsToUniquify.Add((currentComponent, tableName, schema, entityTypes));
-                }
 
-                if (anyComponentSkipped)
-                {
-                    var firstComponent = components[0];
-                    if (componentsToUniquify == null)
+                    if (!clashingTables.TryGetValue(table, out var clashingSubTables))
                     {
-                        componentsToUniquify = new List<(ISet<IConventionEntityType> Component, string TableName, string Schema, ISet<IConventionEntityType> OldComponent)>();
+                        clashingSubTables = new Dictionary<(string Name, string Schema), List<IConventionEntityType>>();
+                        clashingTables[table] = clashingSubTables;
                     }
-                    componentsToUniquify.Add((firstComponent, tableName, schema, entityTypes));
+
+                    if (!clashingSubTables.TryGetValue((originalName, table.Schema), out var subTable))
+                    {
+                        subTable = new List<IConventionEntityType>();
+                        clashingSubTables[(originalName, table.Schema)] = subTable;
+                    }
+
+                    subTable.Add(entityType);
                 }
             }
 
-            if (componentsToUniquify != null)
+            if (clashingTables == null)
             {
-                foreach (var componentTuple in componentsToUniquify)
-                {
-                    var (component, tableName, schema, entityTypes) = componentTuple;
-                    Uniquify(component, tableName, schema, entityTypes, tables, maxLength);
-                }
+                return;
             }
-        }
 
-        private static void Uniquify(
-            ISet<IConventionEntityType> newComponent,
-            string tableName,
-            string schema,
-            ISet<IConventionEntityType> oldComponent,
-            Dictionary<(string TableName, string Schema), ISet<IConventionEntityType>> tables,
-            int maxLength)
-        {
-            var uniqueName = Uniquifier.Uniquify(tableName, tables, n => (n, schema), maxLength);
-            tables[(uniqueName, schema)] = newComponent;
-            foreach (var entityType in newComponent)
+            // Some entity types might end up mapped to the same table after the table name is truncated,
+            // so we need to map them to different tables as was intended initially
+            foreach (var subTables in clashingTables)
             {
-                entityType.Builder.ToTable(uniqueName);
-                oldComponent.Remove(entityType);
+                var table = subTables.Key;
+                var oldTable = tables[table];
+                foreach (var subTable in subTables.Value.Values.Skip(1))
+                {
+                    var uniqueName = Uniquifier.Uniquify(table.Name, tables, n => (n, table.Schema), maxLength);
+                    tables[(uniqueName, table.Schema)] = subTable;
+                    foreach (var entityType in subTable)
+                    {
+                        entityType.Builder.ToTable(uniqueName);
+                        oldTable.Remove(entityType);
+                    }
+                }
             }
         }
 
@@ -212,7 +175,9 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
 
                 var usePrefix = property.DeclaringEntityType != otherProperty.DeclaringEntityType;
                 if (!usePrefix
-                    || property.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table).Any())
+                    || (!property.DeclaringEntityType.IsStrictlyDerivedFrom(otherProperty.DeclaringEntityType)
+                        && !otherProperty.DeclaringEntityType.IsStrictlyDerivedFrom(property.DeclaringEntityType))
+                    || property.DeclaringEntityType.FindRowInternalForeignKeys(tableName, schema, StoreObjectType.Table).Any())
                 {
                     var newColumnName = TryUniquify(property, columnName, properties, usePrefix, maxLength);
                     if (newColumnName != null)
@@ -223,7 +188,9 @@ namespace Microsoft.EntityFrameworkCore.Metadata.Conventions
                 }
 
                 if (!usePrefix
-                    || otherProperty.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table).Any())
+                    || (!property.DeclaringEntityType.IsStrictlyDerivedFrom(otherProperty.DeclaringEntityType)
+                        && !otherProperty.DeclaringEntityType.IsStrictlyDerivedFrom(property.DeclaringEntityType))
+                    || otherProperty.DeclaringEntityType.FindRowInternalForeignKeys(tableName, schema, StoreObjectType.Table).Any())
                 {
                     var newOtherColumnName = TryUniquify(otherProperty, columnName, properties, usePrefix, maxLength);
                     if (newOtherColumnName != null)

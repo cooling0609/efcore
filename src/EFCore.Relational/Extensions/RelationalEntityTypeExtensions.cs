@@ -47,8 +47,9 @@ namespace Microsoft.EntityFrameworkCore
         ///     Returns the default table name that would be used for this entity type.
         /// </summary>
         /// <param name="entityType"> The entity type to get the table name for. </param>
+        /// <param name="truncate"> A value indicating whether the name should be truncated to the max identifier length. </param>
         /// <returns> The default name of the table to which the entity type would be mapped. </returns>
-        public static string GetDefaultTableName([NotNull] this IEntityType entityType)
+        public static string GetDefaultTableName([NotNull] this IEntityType entityType, bool truncate = true)
         {
             var ownership = entityType.FindOwnership();
             if (ownership != null
@@ -66,7 +67,9 @@ namespace Microsoft.EntityFrameworkCore
                     : $"{entityType.DefiningNavigationName}_{name}";
             }
 
-            return Uniquifier.Truncate(name, entityType.Model.GetMaxIdentifierLength());
+            return truncate
+                ? Uniquifier.Truncate(name, entityType.Model.GetMaxIdentifierLength())
+                : name;
         }
 
         /// <summary>
@@ -306,7 +309,7 @@ namespace Microsoft.EntityFrameworkCore
         /// <returns> The <see cref="ConfigurationSource" /> for the view name. </returns>
         public static ConfigurationSource? GetViewNameConfigurationSource([NotNull] this IConventionEntityType entityType)
             => entityType.FindAnnotation(RelationalAnnotationNames.ViewName)
-                ?.GetConfigurationSource();
+            ?.GetConfigurationSource();
 
         /// <summary>
         ///     Returns the database schema that contains the mapped view.
@@ -322,8 +325,8 @@ namespace Microsoft.EntityFrameworkCore
             }
 
             return entityType.BaseType != null
-                    ? entityType.GetRootType().GetViewSchema()
-                    : GetDefaultViewSchema(entityType);
+                ? entityType.GetRootType().GetViewSchema()
+                : GetDefaultViewSchema(entityType);
         }
 
         /// <summary>
@@ -551,44 +554,44 @@ namespace Microsoft.EntityFrameworkCore
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same table.
         /// </summary>
-        public static IEnumerable<IForeignKey> FindTableIntrarowForeignKeys(
+        public static IEnumerable<IForeignKey> FindTableRowInternalForeignKeys(
             [NotNull] this IEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.Table);
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.Table);
 
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same table.
         /// </summary>
-        public static IEnumerable<IMutableForeignKey> FindTableIntrarowForeignKeys(
+        public static IEnumerable<IMutableForeignKey> FindTableRowInternalForeignKeys(
             [NotNull] this IMutableEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.Table).Cast<IMutableForeignKey>();
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.Table).Cast<IMutableForeignKey>();
 
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same table.
         /// </summary>
-        public static IEnumerable<IConventionForeignKey> FindTableIntrarowForeignKeys(
+        public static IEnumerable<IConventionForeignKey> FindTableRowInternalForeignKeys(
             [NotNull] this IConventionEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.Table).Cast<IConventionForeignKey>();
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.Table).Cast<IConventionForeignKey>();
 
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same view.
         /// </summary>
-        public static IEnumerable<IForeignKey> FindViewIntrarowForeignKeys(
+        public static IEnumerable<IForeignKey> FindViewRowInternalForeignKeys(
             [NotNull] this IEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.View);
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.View);
 
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same view.
         /// </summary>
-        public static IEnumerable<IMutableForeignKey> FindViewIntrarowForeignKeys(
+        public static IEnumerable<IMutableForeignKey> FindViewRowInternalForeignKeys(
             [NotNull] this IMutableEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.View).Cast<IMutableForeignKey>();
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.View).Cast<IMutableForeignKey>();
 
         /// <summary>
         ///     Gets the foreign keys for the given entity type that point to other entity types sharing the same view.
         /// </summary>
-        public static IEnumerable<IConventionForeignKey> FindViewIntrarowForeignKeys(
+        public static IEnumerable<IConventionForeignKey> FindViewRowInternalForeignKeys(
             [NotNull] this IConventionEntityType entityType, [NotNull] string name, [CanBeNull] string schema)
-            => entityType.FindIntrarowForeignKeys(name, schema, StoreObjectType.View).Cast<IConventionForeignKey>();
+            => entityType.FindRowInternalForeignKeys(name, schema, StoreObjectType.View).Cast<IConventionForeignKey>();
 
         /// <summary>
         ///     Gets a value indicating whether the entity type is ignored by Migrations.

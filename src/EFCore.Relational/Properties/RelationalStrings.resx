@@ -583,10 +583,10 @@
     <value>The store type '{type}' used for the column '{column}' in a migration data operation is not supported by the current provider.</value>
   </data>
   <data name="NonTPHTableClash" xml:space="preserve">
-    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different tables.</value>
+    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the table '{table}'. All the entity types in a hierarchy that don't have a discriminator must be mapped to different tables. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.</value>
   </data>
   <data name="NonTPHViewClash" xml:space="preserve">
-    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All entity types in a hierarchy that don't have a discriminator must be mapped to different views.</value>
+    <value>Both '{entityType}' and '{otherEntityType}' are mapped to the view '{view}'. All the entity types in a hierarchy that don't have a discriminator must be mapped to different views. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.</value>
   </data>
   <data name="TableOverrideDeclaredTable" xml:space="preserve">
     <value>The property '{property}' has configuration specific to the table or view '{table}', however that's the main table or view to which '{entityType}' is mapped. Remove the specific configuration or use the configuration that does not specify a table or view.</value>
@@ -595,10 +595,10 @@
     <value>The property '{propertySpecification}' has specific configuration for the table or view '{table}', however it isn't mapped to a column on that table. Remove the specific configuration or map an entity type that contains this property to '{table}'.</value>
   </data>
   <data name="TPHTableMismatch" xml:space="preserve">
-    <value>'{entityType}' is mapped to the table '{table}' while '{otherEntityType}' is mapped to the table '{otherTable}'. Map all entity types in the hierarchy to the same table or remove the discriminator.</value>
+    <value>'{entityType}' is mapped to the table '{table}' while '{otherEntityType}' is mapped to the table '{otherTable}'. Map all the entity types in the hierarchy to the same table or remove the discriminator and map all of them to different tables. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.</value>
   </data>
   <data name="TPHViewMismatch" xml:space="preserve">
-    <value>'{entityType}' is mapped to the view '{view}' while '{otherEntityType}' is mapped to the view '{otherView}'. Map all entity types in the hierarchy to the same view or remove the discriminator.</value>
+    <value>'{entityType}' is mapped to the view '{view}' while '{otherEntityType}' is mapped to the view '{otherView}'. Map all the entity types in the hierarchy to the same view or remove the discriminator and map all of them to different views. See https://go.microsoft.com/fwlink/?linkid=2130430 for more information.</value>
   </data>
   <data name="DbFunctionAggregateCustomTranslation" xml:space="preserve">
     <value>Cannot set custom translation on the DbFunction '{function}' since it is an aggregate function.</value>

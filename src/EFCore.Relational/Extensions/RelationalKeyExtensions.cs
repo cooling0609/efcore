@@ -86,7 +86,7 @@ namespace Microsoft.EntityFrameworkCore
                 // Using a hashset is detrimental to the perf when there are no cycles
                 for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
                 {
-                    var linkingFk = rootKey.DeclaringEntityType.FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    var linkingFk = rootKey.DeclaringEntityType.FindTableRowInternalForeignKeys(tableName, schema)
                         .FirstOrDefault();
                     if (linkingFk == null)
                     {
@@ -114,7 +114,7 @@ namespace Microsoft.EntityFrameworkCore
                 for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
                 {
                     var linkedKey = rootKey.DeclaringEntityType
-                        .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                        .FindTableRowInternalForeignKeys(tableName, schema)
                         .SelectMany(fk => fk.PrincipalEntityType.GetKeys())
                         .FirstOrDefault(k => k.Properties.Select(p => p.GetColumnName(tableName, schema)).SequenceEqual(propertyNames));
                     if (linkedKey == null)
@@ -214,7 +214,7 @@ namespace Microsoft.EntityFrameworkCore
             for (var i = 0; i < Metadata.Internal.RelationalEntityTypeExtensions.MaxEntityTypesSharingTable; i++)
             {
                 var linkedKey = rootKey.DeclaringEntityType
-                    .FindIntrarowForeignKeys(tableName, schema, StoreObjectType.Table)
+                    .FindTableRowInternalForeignKeys(tableName, schema)
                     .SelectMany(fk => fk.PrincipalEntityType.GetKeys())
                     .FirstOrDefault(k => k.GetName(tableName, schema) == keyName);
                 if (linkedKey == null)

@@ -121,7 +121,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                     var table = property.DeclaringEntityType.GetTableName();
                     var schema = property.DeclaringEntityType.GetSchema();
                     if (IsNotNullAndFalse(property.GetDefaultValue(table, schema))
-                            || property.GetDefaultValueSql(table, schema) != null)
+                        || property.GetDefaultValueSql(table, schema) != null)
                     {
                         logger.BoolWithDefaultWarning(property);
                     }
@@ -351,7 +351,10 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                         }
 
                         storeConcurrencyTokens[property.GetColumnName(tableName, schema)] = property;
-                        missingConcurrencyTokens = new HashSet<string>();
+                        if (missingConcurrencyTokens == null)
+                        {
+                            missingConcurrencyTokens = new HashSet<string>();
+                        }
                     }
                 }
             }
@@ -786,33 +789,33 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                     || rootEntityType.GetDiscriminatorProperty() != null;
                 if (isTPH)
                 {
-                    ValidateTPHMapping(rootEntityType, table: false);
-                    ValidateTPHMapping(rootEntityType, table: true);
+                    ValidateTPHMapping(rootEntityType, forTables: false);
+                    ValidateTPHMapping(rootEntityType, forTables: true);
                     ValidateDiscriminatorValues(rootEntityType);
                 }
                 else
                 {
-                    ValidateTPTMapping(rootEntityType, table: false);
-                    ValidateTPTMapping(rootEntityType, table: true);
+                    ValidateTPTMapping(rootEntityType, forTables: false);
+                    ValidateTPTMapping(rootEntityType, forTables: true);
                 }
             }
         }
 
-        private void ValidateTPTMapping(IEntityType rootEntityType, bool table)
+        private void ValidateTPTMapping(IEntityType rootEntityType, bool forTables)
         {
             var derivedTypes = new Dictionary<(string, string), IEntityType>();
             foreach (var entityType in rootEntityType.GetDerivedTypesInclusive())
             {
-                var name = table ? entityType.GetTableName() : entityType.GetViewName();
+                var name = forTables ? entityType.GetTableName() : entityType.GetViewName();
                 if (name == null)
                 {
                     continue;
                 }
 
-                var schema = table ? entityType.GetSchema() : entityType.GetViewSchema();
+                var schema = forTables ? entityType.GetSchema() : entityType.GetViewSchema();
                 if (derivedTypes.TryGetValue((name, schema), out var otherType))
                 {
-                    throw new InvalidOperationException(table
+                    throw new InvalidOperationException(forTables
                         ? RelationalStrings.NonTPHTableClash(
                             entityType.DisplayName(), otherType.DisplayName(), entityType.GetSchemaQualifiedTableName())
                         : RelationalStrings.NonTPHViewClash(
@@ -823,14 +826,14 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
             }
         }
 
-        private void ValidateTPHMapping(IEntityType rootEntityType, bool table)
+        private void ValidateTPHMapping(IEntityType rootEntityType, bool forTables)
         {
             string firstName = null;
             string firstSchema = null;
             IEntityType firstType = null;
             foreach (var entityType in rootEntityType.GetDerivedTypesInclusive())
             {
-                var name = table ? entityType.GetTableName() : entityType.GetViewName();
+                var name = forTables ? entityType.GetTableName() : entityType.GetViewName();
                 if (name == null)
                 {
                     continue;
@@ -839,15 +842,15 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure
                 if (firstType == null)
                 {
                     firstType = entityType;
-                    firstName = table ? firstType.GetTableName() : firstType.GetViewName();
-                    firstSchema = table ? firstType.GetSchema() : firstType.GetViewSchema();
+                    firstName = forTables ? firstType.GetTableName() : firstType.GetViewName();
+                    firstSchema = forTables ? firstType.GetSchema() : firstType.GetViewSchema();
                     continue;
                 }
 
-                var schema = table ? entityType.GetSchema() : entityType.GetViewSchema();
+                var schema = forTables ? entityType.GetSchema() : entityType.GetViewSchema();
                 if (name != firstName || schema != firstSchema)
                 {
-                    throw new InvalidOperationException(table
+                    throw new InvalidOperationException(forTables
                         ? RelationalStrings.TPHTableMismatch(
                             entityType.DisplayName(), entityType.GetSchemaQualifiedTableName(),
                             firstType.DisplayName(), firstType.GetSchemaQualifiedTableName())

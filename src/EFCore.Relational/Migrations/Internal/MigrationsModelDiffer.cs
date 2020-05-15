@@ -1837,7 +1837,8 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                         }
 
                         if (sourceEntry.EntityState == EntityState.Deleted
-                            || entryMapping.RecreateRow)
+                            || entryMapping.RecreateRow
+                            || !target.EntityTypeMappings.Any(m => m.EntityType == entry.EntityType))
                         {
                             entryMapping.RecreateRow = true;
                             continue;
@@ -1851,7 +1852,12 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                             }
 
                             var targetColumn = targetProperty.GetTableColumnMappings()
-                                .Single(m => m.TableMapping.EntityType == entry.EntityType && m.TableMapping.Table == target).Column;
+                                .FirstOrDefault(m => m.TableMapping.EntityType == entry.EntityType && m.TableMapping.Table == target)?.Column;
+                            if (targetColumn == null)
+                            {
+                                continue;
+                            }
+
                             var sourceColumn = diffContext.FindSource(targetColumn);
                             if (sourceColumn == null)
                             {
@@ -2072,7 +2078,8 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                                     command.ColumnModifications.Where(col => col.IsKey).Select(GetValue).ToList()),
                                 Columns = command.ColumnModifications.Where(col => col.IsWrite).Select(col => col.ColumnName).ToArray(),
                                 Values = ToMultidimensionalArray(
-                                    command.ColumnModifications.Where(col => col.IsWrite).Select(GetValue).ToList())
+                                    command.ColumnModifications.Where(col => col.IsWrite).Select(GetValue).ToList()),
+                                IsDestructiveChange = true
                             };
                         }
                         else
@@ -2089,7 +2096,8 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Internal
                                 Table = command.TableName,
                                 KeyColumns = command.ColumnModifications.Where(col => col.IsKey).Select(col => col.ColumnName).ToArray(),
                                 KeyValues = ToMultidimensionalArray(
-                                    command.ColumnModifications.Where(col => col.IsKey).Select(GetValue).ToArray())
+                                    command.ColumnModifications.Where(col => col.IsKey).Select(GetValue).ToArray()),
+                                IsDestructiveChange = true
                             };
                         }
                     }
